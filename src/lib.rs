@@ -1,3 +1,4 @@
 mod marker;
+mod huffman;
 
 
