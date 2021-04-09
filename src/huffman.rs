@@ -3,6 +3,12 @@
  * section K.3 Typical Huffman tables for 8-bit precision luminance and chrominance
  */
 
+#[derive(Copy, Clone, Debug)]
+pub enum CodingClass {
+    Dc = 0,
+    Ac = 1,
+}
+
 static DEFAULT_LUMA_DC_CODE_LENGTHS: [u8; 16] = [
     0x00, 0x01, 0x05, 0x01, 0x01, 0x01, 0x01, 0x01,
     0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,

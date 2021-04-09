@@ -1,6 +1,7 @@
 use crate::marker::Marker;
 
 use std::io::{Write, Result as IOResult};
+use crate::huffman::{HuffmanTable, CodingClass};
 
 #[derive(Debug)]
 pub enum Density {
@@ -70,6 +71,31 @@ impl<W: Write> JfifWriter<W> {
         }
 
         self.write(&[0x00, 0x00])
+    }
+
+    /// Append huffman table segment
+    ///
+    /// - `class`: 0 for DC or 1 for AC
+    /// - `dest`: 0 for luma or 1 for chroma tables
+    ///
+    /// Layout:
+    /// ```txt
+    /// |--------|---------------|--------------------------|--------------------|--------|
+    /// | 0xFFC4 | 16 bit length | 4 bit class / 4 bit dest |  16 byte num codes | values |
+    /// |--------|---------------|--------------------------|--------------------|--------|
+    /// ```
+    ///
+    pub fn write_huffman_segment(&mut self, class: CodingClass, destination: u8, table: &HuffmanTable) -> IOResult<()> {
+        assert!(destination < 4, "Bad destination: {}", destination);
+
+        self.write_marker(Marker::DHT)?;
+        self.write_u16(2 + 1 + 16 + table.values().len() as u16)?;
+
+        self.write_u8(((class as u8) << 4) | destination as u8)?;
+        self.write(table.length())?;
+        self.write(table.values())?;
+
+        Ok(())
     }
 }
 
