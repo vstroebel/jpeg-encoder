@@ -2,6 +2,7 @@ use crate::marker::Marker;
 
 use std::io::{Write, Result as IOResult};
 use crate::huffman::{HuffmanTable, CodingClass};
+use crate::quantization::QuantizationTable;
 
 #[derive(Debug)]
 pub enum Density {
@@ -9,6 +10,20 @@ pub enum Density {
     Inch { x: u16, y: u16 },
     Centimeter { x: u16, y: u16 },
 }
+
+/// Zig-zag sequence of quantized DCT coefficients
+///
+/// Figure A.6
+pub static ZIGZAG: [u8; 64] = [
+    0, 1, 8, 16, 9, 2, 3, 10,
+    17, 24, 32, 25, 18, 11, 4, 5,
+    12, 19, 26, 33, 40, 48, 41, 34,
+    27, 20, 13, 6, 7, 14, 21, 28,
+    35, 42, 49, 56, 57, 50, 43, 36,
+    29, 22, 15, 23, 30, 37, 44, 51,
+    58, 59, 52, 45, 38, 31, 39, 46,
+    53, 60, 61, 54, 47, 55, 62, 63,
+];
 
 pub(crate) struct JfifWriter<W: Write> {
     w: W,
@@ -94,6 +109,33 @@ impl<W: Write> JfifWriter<W> {
         self.write_u8(((class as u8) << 4) | destination as u8)?;
         self.write(table.length())?;
         self.write(table.values())?;
+
+        Ok(())
+    }
+
+    /// Append a quantization table
+    ///
+    /// - `precision`: 0 which means 1 byte per value.
+    /// - `dest`: 0 for luma or 1 for chroma tables
+    ///
+    /// Layout:
+    /// ```txt
+    /// |--------|---------------|------------------------------|--------|--------|-----|--------|
+    /// | 0xFFDB | 16 bit length | 4 bit precision / 4 bit dest | V(0,0) | V(0,1) | ... | V(7,7) |
+    /// |--------|---------------|------------------------------|--------|--------|-----|--------|
+    /// ```
+    ///
+    pub fn write_quantization_segment(&mut self, destination: u8, table: &QuantizationTable) -> IOResult<()> {
+        assert!(destination < 4, "Bad destination: {}", destination);
+
+        self.write_marker(Marker::DQT)?;
+        self.write_u16(2 + 1 + 64)?;
+
+        self.write_u8(destination as u8)?;
+
+        for &v in &ZIGZAG {
+            self.write_u8(table.get(v as usize))?;
+        }
 
         Ok(())
     }
