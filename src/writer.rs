@@ -1,8 +1,9 @@
-use crate::marker::Marker;
+use crate::marker::{Marker, SOFType};
 
 use std::io::{Write, Result as IOResult};
 use crate::huffman::{HuffmanTable, CodingClass};
 use crate::quantization::QuantizationTable;
+use crate::encoder::Component;
 
 #[derive(Debug)]
 pub enum Density {
@@ -25,14 +26,21 @@ pub static ZIGZAG: [u8; 64] = [
     53, 60, 61, 54, 47, 55, 62, 63,
 ];
 
+const BUFFER_SIZE: usize = std::mem::size_of::<usize>() * 8;
+
+
 pub(crate) struct JfifWriter<W: Write> {
     w: W,
+    bit_buffer: usize,
+    free_bits: i8,
 }
 
 impl<W: Write> JfifWriter<W> {
     pub fn new(w: W) -> Self {
         JfifWriter {
             w,
+            bit_buffer: 0,
+            free_bits: BUFFER_SIZE as i8,
         }
     }
 
@@ -46,6 +54,52 @@ impl<W: Write> JfifWriter<W> {
 
     pub fn write_u16(&mut self, value: u16) -> IOResult<()> {
         self.w.write_all(&value.to_be_bytes())
+    }
+
+
+    pub fn flush_bit_buffer(&mut self) -> IOResult<()> {
+        while self.free_bits <= (BUFFER_SIZE as i8 - 8) {
+            let value = (self.bit_buffer >> (BUFFER_SIZE as i8 - 8 - self.free_bits)) & 0xFF;
+
+            self.write_u8(value as u8)?;
+
+            if value == 0xFF {
+                self.write_u8(0x00)?;
+            }
+
+            self.free_bits += 8;
+        }
+
+        Ok(())
+    }
+
+    #[inline(always)]
+    fn write_bit_buffer(&mut self) -> IOResult<()> {
+        if (self.bit_buffer & 0x8080808080808080 & !(self.bit_buffer.wrapping_add(0x0101010101010101))) != 0 {
+            self.flush_bit_buffer()
+        } else {
+            self.free_bits = 0;
+            self.w.write_all(&self.bit_buffer.to_be_bytes())
+        }
+    }
+
+    pub fn write_bits(&mut self, value: u32, size: u8) -> IOResult<()> {
+        let size = size as i8;
+        let value = value as usize;
+
+        self.free_bits -= size as i8;
+
+        if self.free_bits < 0 {
+            let free_bits = self.free_bits;
+            self.bit_buffer = (self.bit_buffer << (size + free_bits)) | (value >> -free_bits);
+            self.free_bits = 0;
+            self.write_bit_buffer()?;
+            self.bit_buffer = value;
+            self.free_bits = free_bits + BUFFER_SIZE as i8;
+        } else {
+            self.bit_buffer = (self.bit_buffer << size) | value;
+        }
+        Ok(())
     }
 
     pub fn write_marker(&mut self, marker: Marker) -> IOResult<()> {
@@ -136,6 +190,123 @@ impl<W: Write> JfifWriter<W> {
         for &v in &ZIGZAG {
             self.write_u8(table.get(v as usize))?;
         }
+
+        Ok(())
+    }
+
+    pub fn huffman_encode(&mut self, val: u8, table: &HuffmanTable) -> IOResult<()> {
+        let (size, code) = table.get_for_value(val);
+        self.write_bits(code as u32, size)
+    }
+
+    pub fn huffman_encode_value(&mut self, size: u8, symbol: u8, value: u16, table: &HuffmanTable) -> IOResult<()> {
+        let (num_bits, code) = table.get_for_value(symbol);
+
+        let mut temp = value as u32;
+        temp |= (code as u32) << size;
+        let size = size + num_bits;
+
+        self.write_bits(temp, size)
+    }
+
+    pub fn write_block(
+        &mut self,
+        block: &[i16; 64],
+        prev_dc: i16,
+        dc_table: &HuffmanTable,
+        ac_table: &HuffmanTable,
+    ) -> IOResult<()> {
+        let mut zero_run = 0;
+
+        for (i, &value) in block.iter().enumerate() {
+            if i == 0 {
+                let diff = value - prev_dc;
+                let (size, value) = Self::get_code(diff);
+
+                self.huffman_encode_value(size, size, value, dc_table)?;
+            } else if value == 0 {
+                zero_run += 1;
+            } else {
+                while zero_run > 15 {
+                    self.huffman_encode(0xF0, ac_table)?;
+                    zero_run -= 16;
+                }
+
+                let (size, value) = Self::get_code(value);
+                let symbol = (zero_run << 4) | size;
+
+                self.huffman_encode_value(size, symbol, value, ac_table)?;
+
+                zero_run = 0;
+            }
+        }
+
+        if zero_run > 0 {
+            self.huffman_encode(0x00, ac_table)?;
+        }
+
+        Ok(())
+    }
+
+    fn get_code(value: i16) -> (u8, u16) {
+        let sign = value >> 15;
+        let temp = value + sign;
+        let mut temp2 = (sign ^ temp) as u16;
+
+        let mut num_bits = 0;
+
+        while temp2 > 0 {
+            num_bits += 1;
+            temp2 >>= 1;
+        }
+
+        let coefficient = temp & ((1 << num_bits as usize) - 1);
+
+        (num_bits as u8, coefficient as u16)
+    }
+
+    pub fn write_frame_header(&mut self, width: u16, height: u16, components: &[Component]) -> IOResult<()> {
+        self.write_marker(Marker::SOF(SOFType::BaselineDCT))?;
+
+        self.write_u16(2 + 1 + 2 + 2 + 1 + (components.len() as u16) * 3)?;
+
+        // Precision
+        self.write_u8(8)?;
+
+        self.write_u16(height)?;
+        self.write_u16(width)?;
+
+        self.write_u8(components.len() as u8)?;
+
+        for component in components.iter() {
+            self.write_u8(component.id)?;
+            self.write_u8((1 << 4) | 1)?;
+            self.write_u8(component.quantization_table)?;
+        }
+
+        Ok(())
+    }
+
+    pub fn write_scan_header(&mut self, components: &[Component]) -> IOResult<()> {
+        self.write_marker(Marker::SOS)?;
+
+        self.write_u16(2 + 1 + (components.len() as u16) * 2 + 3)?;
+
+        self.write_u8(components.len() as u8)?;
+
+        for component in components.iter() {
+            self.write_u8(component.id as u8)?;
+            self.write_u8((component.dc_huffman_table << 4) | component.ac_huffman_table)?;
+        }
+
+        // Start of spectral or predictor selection
+        self.write_u8(0)?;
+
+        // End of spectral selection
+        self.write_u8(63)?;
+
+        // Successive approximation bit position high and low
+        self.write_u8(0)?;
 
         Ok(())
     }
