@@ -118,6 +118,7 @@ impl<W: Write> JpegEncoder<W> {
             height: height as u32,
         })?;
 
+        self.writer.write_bits(0x7F, 7);
         self.writer.flush_bit_buffer()?;
         self.writer.write_marker(Marker::EOI)?;
 
@@ -153,8 +154,8 @@ impl<W: Write> JpegEncoder<W> {
                 self.writer.write_block(&q_block_cr, prev_dc[2], &self.huffman_tables[1].0, &self.huffman_tables[1].1)?;
 
                 prev_dc[0] = q_block_y[0];
-                prev_dc[1] = q_block_cb[1];
-                prev_dc[2] = q_block_cr[2];
+                prev_dc[1] = q_block_cb[0];
+                prev_dc[2] = q_block_cr[0];
             }
         }
 
