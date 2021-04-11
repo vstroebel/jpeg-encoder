@@ -1,9 +1,9 @@
 use crate::marker::{Marker, SOFType};
-
-use std::io::{Write, Result as IOResult};
 use crate::huffman::{HuffmanTable, CodingClass};
 use crate::quantization::QuantizationTable;
 use crate::encoder::Component;
+
+use std::io::{Write, Result as IOResult};
 
 #[derive(Debug)]
 pub enum Density {

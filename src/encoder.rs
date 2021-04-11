@@ -1,13 +1,12 @@
 use crate::writer::{JfifWriter, ZIGZAG};
 use crate::fdct::fdct;
 use crate::marker::Marker;
-
-use std::io::{Write, Result as IOResult};
 use crate::huffman::{HuffmanTable, CodingClass};
 use crate::image_buffer::*;
 use crate::quantization::QuantizationTable;
 use crate::Density;
 
+use std::io::{Write, Result as IOResult};
 
 pub(crate) struct Component {
     pub id: u8,
