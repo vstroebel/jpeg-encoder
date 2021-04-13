@@ -39,14 +39,19 @@ impl<'a> ImageBuffer<'a> {
         self.height
     }
 
-    pub fn get_pixel(&self, x: u32, y: u32) -> (u8, u8, u8) {
+    pub fn fill_buffers(&self, x: u32, y: u32, buffers: &mut [Vec<u8>; 3]) {
         let x = x.min(self.width as u32 - 1);
         let y = y.min(self.height as u32 - 1);
 
         let offset = (y * self.width + x) as usize * 3;
+        let (y, cb, cr) = rgb_to_ycbcr(
+            self.data[offset],
+            self.data[offset + 1],
+            self.data[offset + 2],
+        );
 
-        rgb_to_ycbcr(self.data[offset],
-                     self.data[offset + 1],
-                     self.data[offset + 2])
+        buffers[0].push(y);
+        buffers[1].push(cb);
+        buffers[2].push(cr);
     }
 }

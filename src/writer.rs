@@ -280,7 +280,7 @@ impl<W: Write> JfifWriter<W> {
 
         for component in components.iter() {
             self.write_u8(component.id)?;
-            self.write_u8((1 << 4) | 1)?;
+            self.write_u8((component.horizontal_sampling_factor << 4) | component.vertical_sampling_factor)?;
             self.write_u8(component.quantization_table)?;
         }
 
