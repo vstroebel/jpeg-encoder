@@ -6,7 +6,9 @@ use crate::image_buffer::*;
 use crate::quantization::QuantizationTable;
 use crate::Density;
 
-use std::io::{Write, Result as IOResult};
+use std::io::{Write, Result as IOResult, BufWriter};
+use std::fs::File;
+use std::path::Path;
 
 pub(crate) struct Component {
     pub id: u8,
@@ -231,6 +233,14 @@ impl<W: Write> JpegEncoder<W> {
         }
 
         q_block
+    }
+}
+
+impl JpegEncoder<BufWriter<File>> {
+    pub fn new_file<P: AsRef<Path>>(path: P, quality: u8) -> IOResult<JpegEncoder<BufWriter<File>>> {
+        let file = File::create(path)?;
+        let buf = BufWriter::new(file);
+        Ok(Self::new(buf, quality))
     }
 }
 
