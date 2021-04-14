@@ -29,7 +29,28 @@ pub trait ImageBuffer {
 
     fn height(&self) -> u32;
 
-    fn fill_buffers(&self, x: u32, y: u32, buffers: &mut [Vec<u8>; 3]);
+    fn fill_buffers(&self, x: u32, y: u32, buffers: &mut [Vec<u8>; 4]);
+}
+
+pub(crate) struct GrayImage<'a>(pub &'a [u8], pub u32, pub u32);
+
+impl<'a> ImageBuffer for GrayImage<'a> {
+    fn width(&self) -> u32 {
+        self.1
+    }
+
+    fn height(&self) -> u32 {
+        self.2
+    }
+
+    fn fill_buffers(&self, x: u32, y: u32, buffers: &mut [Vec<u8>; 4]) {
+        let x = x.min(self.1 as u32 - 1);
+        let y = y.min(self.2 as u32 - 1);
+
+        let offset = (y * self.1 + x) as usize;
+
+        buffers[0].push(self.0[offset + 0]);
+    }
 }
 
 macro_rules! ycbcr_image {
@@ -46,7 +67,7 @@ macro_rules! ycbcr_image {
             }
 
             #[inline(always)]
-            fn fill_buffers(&self, x: u32, y: u32, buffers: &mut [Vec<u8>;3]) {
+            fn fill_buffers(&self, x: u32, y: u32, buffers: &mut [Vec<u8>; 4]) {
                 let x = x.min(self.1 as u32 - 1);
                 let y = y.min(self.2 as u32 - 1);
 
@@ -77,7 +98,7 @@ impl<'a> ImageBuffer for YCbCrImage<'a> {
         self.2
     }
 
-    fn fill_buffers(&self, x: u32, y: u32, buffers: &mut [Vec<u8>; 3]) {
+    fn fill_buffers(&self, x: u32, y: u32, buffers: &mut [Vec<u8>; 4]) {
         let x = x.min(self.1 as u32 - 1);
         let y = y.min(self.2 as u32 - 1);
 
@@ -86,5 +107,29 @@ impl<'a> ImageBuffer for YCbCrImage<'a> {
         buffers[0].push(self.0[offset + 0]);
         buffers[1].push(self.0[offset + 1]);
         buffers[2].push(self.0[offset + 2]);
+    }
+}
+
+pub(crate) struct CmykImage<'a>(pub &'a [u8], pub u32, pub u32);
+
+impl<'a> ImageBuffer for CmykImage<'a> {
+    fn width(&self) -> u32 {
+        self.1
+    }
+
+    fn height(&self) -> u32 {
+        self.2
+    }
+
+    fn fill_buffers(&self, x: u32, y: u32, buffers: &mut [Vec<u8>; 4]) {
+        let x = x.min(self.1 as u32 - 1);
+        let y = y.min(self.2 as u32 - 1);
+
+        let offset = (y * self.1 + x) as usize * 4;
+
+        buffers[0].push(self.0[offset + 0]);
+        buffers[1].push(self.0[offset + 1]);
+        buffers[2].push(self.0[offset + 2]);
+        buffers[3].push(self.0[offset + 3]);
     }
 }
