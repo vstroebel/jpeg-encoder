@@ -24,6 +24,11 @@ pub fn rgb_to_ycbcr(r: u8, g: u8, b: u8) -> (u8, u8, u8) {
     (y as u8, cb as u8, cr as u8)
 }
 
+pub fn cmyk_to_ycck(c: u8, m: u8, y: u8, k: u8) -> (u8, u8, u8, u8) {
+    let (y, cb, cr) = rgb_to_ycbcr(255 - c, 255 - m, 255 - y);
+    (y, cb, cr, k)
+}
+
 pub trait ImageBuffer {
     fn width(&self) -> u32;
 
@@ -113,6 +118,59 @@ impl<'a> ImageBuffer for YCbCrImage<'a> {
 pub(crate) struct CmykImage<'a>(pub &'a [u8], pub u32, pub u32);
 
 impl<'a> ImageBuffer for CmykImage<'a> {
+    fn width(&self) -> u32 {
+        self.1
+    }
+
+    fn height(&self) -> u32 {
+        self.2
+    }
+
+    fn fill_buffers(&self, x: u32, y: u32, buffers: &mut [Vec<u8>; 4]) {
+        let x = x.min(self.1 as u32 - 1);
+        let y = y.min(self.2 as u32 - 1);
+
+        let offset = (y * self.1 + x) as usize * 4;
+
+        buffers[0].push(self.0[offset + 0]);
+        buffers[1].push(self.0[offset + 1]);
+        buffers[2].push(self.0[offset + 2]);
+        buffers[3].push(self.0[offset + 3]);
+    }
+}
+
+pub(crate) struct CmykAsYcckImage<'a>(pub &'a [u8], pub u32, pub u32);
+
+impl<'a> ImageBuffer for CmykAsYcckImage<'a> {
+    fn width(&self) -> u32 {
+        self.1
+    }
+
+    fn height(&self) -> u32 {
+        self.2
+    }
+
+    fn fill_buffers(&self, x: u32, y: u32, buffers: &mut [Vec<u8>; 4]) {
+        let x = x.min(self.1 as u32 - 1);
+        let y = y.min(self.2 as u32 - 1);
+
+        let offset = (y * self.1 + x) as usize * 4;
+        let (y, cb, cr, k) = cmyk_to_ycck(
+            self.0[offset + 0],
+            self.0[offset + 1],
+            self.0[offset + 2],
+            self.0[offset + 3]);
+
+        buffers[0].push(y);
+        buffers[1].push(cb);
+        buffers[2].push(cr);
+        buffers[3].push(k);
+    }
+}
+
+pub(crate) struct YcckImage<'a>(pub &'a [u8], pub u32, pub u32);
+
+impl<'a> ImageBuffer for YcckImage<'a> {
     fn width(&self) -> u32 {
         self.1
     }

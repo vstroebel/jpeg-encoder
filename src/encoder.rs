@@ -15,6 +15,7 @@ pub enum JpegColorType {
     Gray,
     Ycbcr,
     Cmyk,
+    Ycck,
 }
 
 impl JpegColorType {
@@ -24,7 +25,7 @@ impl JpegColorType {
         match self {
             Gray => 1,
             Ycbcr => 3,
-            Cmyk => 4,
+            Cmyk | Ycck => 4,
         }
     }
 }
@@ -38,6 +39,8 @@ pub enum ColorType {
     Bgra,
     Ycbcr,
     Cmyk,
+    CmykAsYcck,
+    Ycck,
 }
 
 impl ColorType {
@@ -48,6 +51,7 @@ impl ColorType {
             Gray => JpegColorType::Gray,
             Rgb | Rgba | Bgr | Bgra | Ycbcr => JpegColorType::Ycbcr,
             Cmyk => JpegColorType::Cmyk,
+            CmykAsYcck | Ycck => JpegColorType::Ycck,
         }
     }
 }
@@ -140,6 +144,12 @@ impl<W: Write> JpegEncoder<W> {
 
         self.writer.write_header(&self.density)?;
 
+        if color_type == ColorType::CmykAsYcck || color_type == ColorType::Ycck {
+            //Set ColorTransform info to YCCK
+            let app_14 = b"Adobe\0\0\0\0\0\0\x02";
+            self.writer.write_segment(Marker::APP(14), app_14.as_ref())?;
+        }
+
         self.writer.write_frame_header(width, height, &self.components)?;
 
         self.writer.write_quantization_segment(0, &self.quantization_tables[0])?;
@@ -181,6 +191,8 @@ impl<W: Write> JpegEncoder<W> {
             ColorType::Bgra => self.encode_image(BgraImage(data, width as u32, height as u32))?,
             ColorType::Ycbcr => self.encode_image(YCbCrImage(data, width as u32, height as u32))?,
             ColorType::Cmyk => self.encode_image(CmykImage(data, width as u32, height as u32))?,
+            ColorType::CmykAsYcck => self.encode_image(CmykAsYcckImage(data, width as u32, height as u32))?,
+            ColorType::Ycck => self.encode_image(YcckImage(data, width as u32, height as u32))?,
         }
 
         self.writer.write_bits(0x7F, 7)?;
@@ -202,6 +214,12 @@ impl<W: Write> JpegEncoder<W> {
             }
             JpegColorType::Cmyk => {
                 add_component!(self.components, 0, 1, 1, 1);
+                add_component!(self.components, 1, 1, 1, 1);
+                add_component!(self.components, 2, 1, 1, 1);
+                add_component!(self.components, 3, 0, self.horizontal_sampling_factor, self.vertical_sampling_factor);
+            }
+            JpegColorType::Ycck => {
+                add_component!(self.components, 0, 0, self.horizontal_sampling_factor, self.vertical_sampling_factor);
                 add_component!(self.components, 1, 1, 1, 1);
                 add_component!(self.components, 2, 1, 1, 1);
                 add_component!(self.components, 3, 0, self.horizontal_sampling_factor, self.vertical_sampling_factor);
@@ -281,7 +299,7 @@ impl<W: Write> JpegEncoder<W> {
 
         Ok(())
     }
-    
+
     fn init_rows(&mut self, buffer_size: usize) -> [Vec<u8>; 4] {
 
         // To simplify the code and to give the compiler more infos to optimize stuff we always initialize 4 components
