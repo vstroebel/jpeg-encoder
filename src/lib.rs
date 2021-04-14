@@ -7,6 +7,4 @@ mod image_buffer;
 mod encoder;
 
 pub use writer::Density;
-pub use encoder::JpegEncoder;
-
-
+pub use encoder::{JpegEncoder, ColorType};

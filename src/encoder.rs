@@ -10,6 +10,15 @@ use std::io::{Write, Result as IOResult, BufWriter};
 use std::fs::File;
 use std::path::Path;
 
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub enum ColorType {
+    Rgb,
+    Rgba,
+    Bgr,
+    Bgra,
+    Ycbcr,
+}
+
 pub(crate) struct Component {
     pub id: u8,
     pub quantization_table: u8,
@@ -74,6 +83,7 @@ impl<W: Write> JpegEncoder<W> {
         data: &[u8],
         width: u16,
         height: u16,
+        color_type: ColorType,
     ) -> IOResult<()> {
         self.components.push(Component {
             id: 0,
@@ -135,11 +145,13 @@ impl<W: Write> JpegEncoder<W> {
 
         self.writer.write_scan_header(&self.components)?;
 
-        self.encode_image(ImageBuffer {
-            data,
-            width: width as u32,
-            height: height as u32,
-        })?;
+        match color_type {
+            ColorType::Rgb => self.encode_image(RgbImage(data, width as u32, height as u32))?,
+            ColorType::Rgba => self.encode_image(RgbaImage(data, width as u32, height as u32))?,
+            ColorType::Bgr => self.encode_image(BgrImage(data, width as u32, height as u32))?,
+            ColorType::Bgra => self.encode_image(BgraImage(data, width as u32, height as u32))?,
+            ColorType::Ycbcr => self.encode_image(YCbCrImage(data, width as u32, height as u32))?,
+        }
 
         self.writer.write_bits(0x7F, 7)?;
         self.writer.flush_bit_buffer()?;
@@ -160,9 +172,9 @@ impl<W: Write> JpegEncoder<W> {
         (max_h_sampling, max_v_sampling)
     }
 
-    fn encode_image(
+    fn encode_image<I: ImageBuffer>(
         &mut self,
-        image: ImageBuffer,
+        image: I,
     ) -> IOResult<()> {
         let (max_h_sampling, max_v_sampling) = self.get_max_sampling_size();
 
