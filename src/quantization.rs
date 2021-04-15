@@ -1,3 +1,5 @@
+use std::num::NonZeroU8;
+
 static DEFAULT_LUMA_TABLE: [u8; 64] = [
     16, 11, 10, 16, 24, 40, 51, 61,
     12, 12, 14, 19, 26, 58, 60, 55,
@@ -22,7 +24,7 @@ static DEFAULT_CHROMA_TABLE: [u8; 64] = [
 
 ///
 pub struct QuantizationTable {
-    table: [u8; 64]
+    table: [NonZeroU8; 64]
 }
 
 impl QuantizationTable {
@@ -35,14 +37,14 @@ impl QuantizationTable {
             200 - quality * 2
         };
 
-        let mut q_table = [0u8; 64];
+        let mut q_table = [NonZeroU8::new(1).unwrap(); 64];
 
         for (i, &v) in table.iter().enumerate() {
             let v = v as u32;
 
             let v = (v * scale + 50) / 100;
 
-            q_table[i] = v.clamp(1, 255) as u8;
+            q_table[i] = NonZeroU8::new(v.clamp(1, 255) as u8).unwrap();
         }
 
         QuantizationTable {
@@ -60,12 +62,12 @@ impl QuantizationTable {
 
     #[inline]
     pub fn get(&self, index: usize) -> u8 {
-        self.table[index]
+        self.table[index].get()
     }
 
     #[inline]
     pub fn quantize(&self, value: i16, index: usize) -> i16 {
-        let q_value = self.table[index] as i16;
+        let q_value = self.table[index].get() as i16;
         let value = value / q_value;
         (value + 4) / 8
     }
