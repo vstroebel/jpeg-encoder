@@ -1,3 +1,5 @@
+#![allow(clippy::identity_op)]
+
 /// Conversion from RGB to YCbCr
 ///
 /// To avoid floating point math this scales everything by 2^16 which gives
