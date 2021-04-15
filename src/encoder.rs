@@ -6,7 +6,7 @@ use crate::image_buffer::*;
 use crate::quantization::QuantizationTable;
 use crate::Density;
 
-use std::io::{Write, Result as IOResult, BufWriter};
+use std::io::{Write, Result as IOResult, Error as IOError, ErrorKind, BufWriter};
 use std::fs::File;
 use std::path::Path;
 
@@ -44,6 +44,16 @@ pub enum ColorType {
 }
 
 impl ColorType {
+    pub(crate) fn get_bytes_per_pixel(&self) -> usize {
+        use ColorType::*;
+
+        match self {
+            Gray => 1,
+            Rgb | Bgr | Ycbcr => 3,
+            Rgba | Bgra | Cmyk | CmykAsYcck | Ycck => 4,
+        }
+    }
+
     pub(crate) fn get_jpeg_color_type(&self) -> JpegColorType {
         use ColorType::*;
 
@@ -135,6 +145,13 @@ impl<W: Write> JpegEncoder<W> {
         height: u16,
         color_type: ColorType,
     ) -> IOResult<()> {
+        let required_data_len = width as usize * height as usize * color_type.get_bytes_per_pixel();
+
+        if data.len() < required_data_len {
+            return Err(IOError::new(ErrorKind::Other,
+                                    format!("Image data too small for dimensions and color_type: {} need at least {}", data.len(), required_data_len)));
+        }
+
         let jpeg_color_type = color_type.get_jpeg_color_type();
         self.init_components(jpeg_color_type);
 
