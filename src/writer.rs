@@ -56,6 +56,14 @@ impl<W: Write> JfifWriter<W> {
         self.w.write_all(&value.to_be_bytes())
     }
 
+    pub fn finalize_bit_buffer(&mut self) -> IOResult<()> {
+        self.write_bits(0x7F, 7)?;
+        self.flush_bit_buffer()?;
+        self.bit_buffer = 0;
+        self.free_bits = 64;
+
+        Ok(())
+    }
 
     pub fn flush_bit_buffer(&mut self) -> IOResult<()> {
         while self.free_bits <= (BUFFER_SIZE as i8 - 8) {
@@ -287,7 +295,7 @@ impl<W: Write> JfifWriter<W> {
         Ok(())
     }
 
-    pub fn write_scan_header(&mut self, components: &[Component]) -> IOResult<()> {
+    pub fn write_scan_header(&mut self, components: &[&Component]) -> IOResult<()> {
         self.write_marker(Marker::SOS)?;
 
         self.write_u16(2 + 1 + (components.len() as u16) * 2 + 3)?;

@@ -198,7 +198,6 @@ impl<W: Write> JpegEncoder<W> {
             )?;
         }
 
-        self.writer.write_scan_header(&self.components)?;
 
         match color_type {
             ColorType::Gray => self.encode_image(GrayImage(data, width as u32, height as u32))?,
@@ -212,8 +211,6 @@ impl<W: Write> JpegEncoder<W> {
             ColorType::Ycck => self.encode_image(YcckImage(data, width as u32, height as u32))?,
         }
 
-        self.writer.write_bits(0x7F, 7)?;
-        self.writer.flush_bit_buffer()?;
         self.writer.write_marker(Marker::EOI)?;
 
         Ok(())
@@ -260,6 +257,20 @@ impl<W: Write> JpegEncoder<W> {
         &mut self,
         image: I,
     ) -> IOResult<()> {
+        // Interleaved mode is only supported with h/v sampling factors of 1 or 2
+        if self.horizontal_sampling_factor > 2 || self.vertical_sampling_factor > 2 {
+            self.encode_image_sequential(image)
+        } else {
+            self.encode_image_interleaved(image)
+        }
+    }
+
+    fn encode_image_interleaved<I: ImageBuffer>(
+        &mut self,
+        image: I,
+    ) -> IOResult<()> {
+        self.writer.write_scan_header(&self.components.iter().collect::<Vec<_>>())?;
+
         let (max_h_sampling, max_v_sampling) = self.get_max_sampling_size();
 
         let num_cols = ceil_div(image.width(), 8 * max_h_sampling);
@@ -314,7 +325,7 @@ impl<W: Write> JpegEncoder<W> {
             }
         }
 
-        Ok(())
+        self.writer.finalize_bit_buffer()
     }
 
     fn init_rows(&mut self, buffer_size: usize) -> [Vec<u8>; 4] {
@@ -354,6 +365,106 @@ impl<W: Write> JpegEncoder<W> {
 
         q_block
     }
+
+    fn encode_image_sequential<I: ImageBuffer>(
+        &mut self,
+        image: I,
+    ) -> IOResult<()> {
+        let num_cols = ceil_div(image.width(), 8);
+        let num_rows = ceil_div(image.height(), 8);
+
+        let buffer_width = (num_cols * 8) as usize;
+        let buffer_size = (num_cols * num_rows * 64) as usize;
+
+        let mut row: [Vec<_>; 4] = self.init_rows(buffer_size);
+
+        for y in 0..num_rows * 8 {
+            for x in 0..num_cols * 8 {
+                image.fill_buffers(x, y, &mut row);
+            }
+        }
+
+
+        let mut blocks: [Vec<_>; 4] = self.init_block_buffers(buffer_size / 64);
+
+        let (max_h_sampling, max_v_sampling) = self.get_max_sampling_size();
+
+        for (i, component) in self.components.iter().enumerate() {
+            let h_scale = max_h_sampling as usize / component.horizontal_sampling_factor as usize;
+            let v_scale = max_v_sampling as usize / component.vertical_sampling_factor as usize;
+
+            let cols = num_cols as usize / h_scale;
+            let rows = num_rows as usize / v_scale;
+
+
+            for block_y in 0..rows {
+                for block_x in 0..cols {
+                    let mut block = get_block(
+                        &row[i],
+                        block_x * 8 * h_scale,
+                        block_y * 8 * v_scale,
+                        h_scale,
+                        v_scale,
+                        buffer_width);
+
+                    fdct(&mut block);
+
+                    let q_block = self.quantize_block(&component, &block);
+
+                    blocks[i].push(q_block);
+                }
+            }
+        }
+
+        for (i, component) in self.components.iter().enumerate() {
+            self.writer.write_scan_header(&[component])?;
+
+            let mut prev_dc = 0;
+
+            for block in &blocks[i] {
+                self.writer.write_block(
+                    &block,
+                    prev_dc,
+                    &self.huffman_tables[component.dc_huffman_table as usize].0,
+                    &self.huffman_tables[component.ac_huffman_table as usize].1,
+                )?;
+
+                prev_dc = block[0];
+            }
+
+            self.writer.finalize_bit_buffer()?;
+        }
+
+        Ok(())
+    }
+
+    fn init_block_buffers(&mut self, buffer_size: usize) -> [Vec<[i16; 64]>; 4] {
+
+        // To simplify the code and to give the compiler more infos to optimize stuff we always initialize 4 components
+        // Resource overhead should be minimal because an empty Vec doesn't allocate
+
+        match self.components.len() {
+            1 => [
+                Vec::with_capacity(buffer_size),
+                Vec::new(),
+                Vec::new(),
+                Vec::new()
+            ],
+            3 => [
+                Vec::with_capacity(buffer_size),
+                Vec::with_capacity(buffer_size),
+                Vec::with_capacity(buffer_size),
+                Vec::new()
+            ],
+            4 => [
+                Vec::with_capacity(buffer_size),
+                Vec::with_capacity(buffer_size),
+                Vec::with_capacity(buffer_size),
+                Vec::with_capacity(buffer_size)
+            ],
+            len => unreachable!("Unsupported component length: {}", len),
+        }
+    }
 }
 
 impl JpegEncoder<BufWriter<File>> {
@@ -374,7 +485,10 @@ fn get_block(data: &[u8],
 
     for x in 0..8 {
         for y in 0..8 {
-            block[x + y * 8] = data[(x * col_stride) + start_x + (y + start_y) * row_stride * width] as i16;
+            let ix = start_x + (x * col_stride);
+            let iy = start_y + (y * row_stride);
+
+            block[y * 8 + x] = data[iy * width + ix] as i16;
         }
     }
 
