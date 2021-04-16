@@ -71,21 +71,21 @@
  * scaled fixed-point arithmetic, with a minimal number of shifts.
  */
 
-static CONST_BITS: i32 = 13;
-static PASS1_BITS: i32 = 2;
+const CONST_BITS: i32 = 13;
+const PASS1_BITS: i32 = 2;
 
-static FIX_0_298631336: i32 = 2446;
-static FIX_0_390180644: i32 = 3196;
-static FIX_0_541196100: i32 = 4433;
-static FIX_0_765366865: i32 = 6270;
-static FIX_0_899976223: i32 = 7373;
-static FIX_1_175875602: i32 = 9633;
-static FIX_1_501321110: i32 = 12299;
-static FIX_1_847759065: i32 = 15137;
-static FIX_1_961570560: i32 = 16069;
-static FIX_2_053119869: i32 = 16819;
-static FIX_2_562915447: i32 = 20995;
-static FIX_3_072711026: i32 = 25172;
+const FIX_0_298631336: i32 = 2446;
+const FIX_0_390180644: i32 = 3196;
+const FIX_0_541196100: i32 = 4433;
+const FIX_0_765366865: i32 = 6270;
+const FIX_0_899976223: i32 = 7373;
+const FIX_1_175875602: i32 = 9633;
+const FIX_1_501321110: i32 = 12299;
+const FIX_1_847759065: i32 = 15137;
+const FIX_1_961570560: i32 = 16069;
+const FIX_2_053119869: i32 = 16819;
+const FIX_2_562915447: i32 = 20995;
+const FIX_3_072711026: i32 = 25172;
 
 const DCT_SIZE: usize = 8;
 
