@@ -215,8 +215,6 @@ impl<W: Write> JpegEncoder<W> {
         let jpeg_color_type = image.get_jpeg_color_type();
         self.init_components(jpeg_color_type);
 
-        let num_components = jpeg_color_type.get_num_components();
-
         self.writer.write_marker(Marker::SOI)?;
 
         self.writer.write_header(&self.density)?;
@@ -227,6 +225,21 @@ impl<W: Write> JpegEncoder<W> {
             self.writer.write_segment(Marker::APP(14), app_14.as_ref())?;
         }
 
+        if self.progressive_scans != 0 {
+            self.encode_image_progressive(image)?;
+        } else if self.horizontal_sampling_factor > 2 || self.vertical_sampling_factor > 2 {
+            // Interleaved mode is only supported with h/v sampling factors of 1 or 2
+            self.encode_image_sequential(image)?;
+        } else {
+            self.encode_image_interleaved(image)?;
+        }
+
+        self.writer.write_marker(Marker::EOI)?;
+
+        Ok(())
+    }
+
+    fn write_frame_header<I: ImageBuffer>(&mut self, image: &I) -> IOResult<()> {
         self.writer.write_frame_header(image.width() as u16, image.height() as u16, &self.components, self.progressive_scans != 0)?;
 
         self.writer.write_quantization_segment(0, &self.quantization_tables[0])?;
@@ -244,7 +257,7 @@ impl<W: Write> JpegEncoder<W> {
             &self.huffman_tables[0].1,
         )?;
 
-        if num_components >= 3 {
+        if image.get_jpeg_color_type().get_num_components() >= 3 {
             self.writer.write_huffman_segment(
                 CodingClass::Dc,
                 1,
@@ -258,17 +271,6 @@ impl<W: Write> JpegEncoder<W> {
             )?;
         }
 
-        if self.progressive_scans != 0 {
-            self.encode_image_progressive(image)?;
-        } else if self.horizontal_sampling_factor > 2 || self.vertical_sampling_factor > 2 {
-            // Interleaved mode is only supported with h/v sampling factors of 1 or 2
-            self.encode_image_sequential(image)?;
-        } else {
-            self.encode_image_interleaved(image)?;
-        }
-
-        self.writer.write_marker(Marker::EOI)?;
-
         Ok(())
     }
 
@@ -276,6 +278,7 @@ impl<W: Write> JpegEncoder<W> {
         &mut self,
         image: I,
     ) -> IOResult<()> {
+        self.write_frame_header(&image)?;
         self.writer.write_scan_header(&self.components.iter().collect::<Vec<_>>(), None)?;
 
         let (max_h_sampling, max_v_sampling) = self.get_max_sampling_size();
@@ -377,7 +380,9 @@ impl<W: Write> JpegEncoder<W> {
         &mut self,
         image: I,
     ) -> IOResult<()> {
-        let blocks = self.encode_blocks(image);
+        let blocks = self.encode_blocks(&image);
+
+        self.write_frame_header(&image)?;
 
         for (i, component) in self.components.iter().enumerate() {
             self.writer.write_scan_header(&[component], None)?;
@@ -405,7 +410,9 @@ impl<W: Write> JpegEncoder<W> {
         &mut self,
         image: I,
     ) -> IOResult<()> {
-        let blocks = self.encode_blocks(image);
+        let blocks = self.encode_blocks(&image);
+
+        self.write_frame_header(&image)?;
 
         for (i, component) in self.components.iter().enumerate() {
             self.writer.write_scan_header(&[component], Some((0, 0)))?;
@@ -457,7 +464,7 @@ impl<W: Write> JpegEncoder<W> {
         Ok(())
     }
 
-    fn encode_blocks<I: ImageBuffer>(&mut self, image: I) -> [Vec<[i16; 64]>; 4] {
+    fn encode_blocks<I: ImageBuffer>(&mut self, image: &I) -> [Vec<[i16; 64]>; 4] {
         let num_cols = ceil_div(image.width(), 8);
         let num_rows = ceil_div(image.height(), 8);
 
