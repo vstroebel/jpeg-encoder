@@ -89,6 +89,8 @@ pub struct JpegEncoder<W: Write> {
     vertical_sampling_factor: u8,
 
     progressive_scans: u8,
+
+    optimize_huffman_table: bool,
 }
 
 impl<W: Write> JpegEncoder<W> {
@@ -118,6 +120,7 @@ impl<W: Write> JpegEncoder<W> {
             horizontal_sampling_factor: luma_sampling,
             vertical_sampling_factor: luma_sampling,
             progressive_scans: 0,
+            optimize_huffman_table: false,
         }
     }
 
@@ -140,6 +143,10 @@ impl<W: Write> JpegEncoder<W> {
 
     pub fn set_progressive_scans(&mut self, scans: u8) {
         self.progressive_scans = scans.min(63);
+    }
+
+    pub fn set_optimized_huffman_tables(&mut self, optimize_huffman_table: bool) {
+        self.optimize_huffman_table = optimize_huffman_table;
     }
 
     pub fn encode(
@@ -227,7 +234,7 @@ impl<W: Write> JpegEncoder<W> {
 
         if self.progressive_scans != 0 {
             self.encode_image_progressive(image)?;
-        } else if self.horizontal_sampling_factor > 2 || self.vertical_sampling_factor > 2 {
+        } else if self.optimize_huffman_table || self.horizontal_sampling_factor > 2 || self.vertical_sampling_factor > 2 {
             // Interleaved mode is only supported with h/v sampling factors of 1 or 2
             self.encode_image_sequential(image)?;
         } else {
@@ -382,6 +389,10 @@ impl<W: Write> JpegEncoder<W> {
     ) -> IOResult<()> {
         let blocks = self.encode_blocks(&image);
 
+        if self.optimize_huffman_table {
+            self.optimize_huffman_table(&blocks);
+        }
+
         self.write_frame_header(&image)?;
 
         for (i, component) in self.components.iter().enumerate() {
@@ -411,6 +422,10 @@ impl<W: Write> JpegEncoder<W> {
         image: I,
     ) -> IOResult<()> {
         let blocks = self.encode_blocks(&image);
+
+        if self.optimize_huffman_table {
+            self.optimize_huffman_table(&blocks);
+        }
 
         self.write_frame_header(&image)?;
 
@@ -539,6 +554,63 @@ impl<W: Write> JpegEncoder<W> {
             len => unreachable!("Unsupported component length: {}", len),
         }
     }
+
+    fn optimize_huffman_table(&mut self, blocks: &[Vec<[i16; 64]>; 4]) {
+        let max_tables = self.components.len().min(2) as u8;
+
+        for table in 0..max_tables {
+            let mut dc_freq = [0u32; 257];
+            dc_freq[256] = 1;
+            let mut ac_freq = [0u32; 257];
+            ac_freq[256] = 1;
+
+            for (i, component) in self.components.iter().enumerate() {
+                if component.dc_huffman_table == table {
+                    let mut prev_dc = 0;
+
+                    for block in &blocks[i] {
+                        let value = block[0];
+                        let diff = value - prev_dc;
+                        let num_bits = get_num_bits(diff);
+
+                        dc_freq[num_bits as usize] += 1;
+
+                        prev_dc = value;
+                    }
+                }
+
+                if component.ac_huffman_table == table {
+                    for block in &blocks[i] {
+                        let mut zero_run = 0;
+
+                        for &value in &block[1..] {
+                            if value == 0 {
+                                zero_run += 1;
+                            } else {
+                                while zero_run > 15 {
+                                    ac_freq[0xF0] += 1;
+                                    zero_run -= 16;
+                                }
+                                let num_bits = get_num_bits(value);
+                                let symbol = (zero_run << 4) | num_bits;
+
+                                ac_freq[symbol as usize] += 1;
+                            }
+                        }
+
+                        if zero_run > 0 {
+                            ac_freq[0] += 1;
+                        }
+                    }
+                }
+            }
+
+            self.huffman_tables[table as usize] = (
+                HuffmanTable::new_optimized(dc_freq),
+                HuffmanTable::new_optimized(ac_freq)
+            );
+        }
+    }
 }
 
 impl JpegEncoder<BufWriter<File>> {
@@ -571,4 +643,19 @@ fn get_block(data: &[u8],
 
 fn ceil_div(value: u32, div: u32) -> u32 {
     value / div + u32::from(value % div != 0)
+}
+
+fn get_num_bits(mut value: i16) -> u8 {
+    if value < 0 {
+        value = -value;
+    }
+
+    let mut num_bits = 0;
+
+    while value > 0 {
+        num_bits += 1;
+        value >>= 1;
+    }
+
+    num_bits
 }

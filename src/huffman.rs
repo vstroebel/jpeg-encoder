@@ -118,6 +118,132 @@ impl HuffmanTable {
         Self::new(&DEFAULT_CHROMA_AC_CODE_LENGTHS, &DEFAULT_CHROMA_AC_VALUES)
     }
 
+    /// Generates an optimized huffman table as described in Section K.2
+    #[allow(clippy::needless_range_loop)]
+    pub fn new_optimized(mut freq: [u32; 257]) -> HuffmanTable {
+        let mut others = [-1i32; 257];
+        let mut codesize = [0usize; 257];
+
+        // Find Huffman code sizes
+        // Figure K.1
+        loop {
+            let mut v1 = None;
+            let mut v1_min = u32::MAX;
+
+            // Find the largest value with the least non zero frequency
+            for (i, &f) in freq.iter().enumerate() {
+                if f > 0 && f <= v1_min {
+                    v1_min = f;
+                    v1 = Some(i);
+                }
+            }
+
+            let mut v1 = match v1 {
+                Some(v) => v,
+                None => break
+            };
+
+            let mut v2 = None;
+            let mut v2_min = u32::MAX;
+
+            // Find the next largest value with the least non zero frequency
+            for (i, &f) in freq.iter().enumerate() {
+                if f > 0 && f <= v2_min && i != v1 {
+                    v2_min = f;
+                    v2 = Some(i);
+                }
+            }
+
+            let mut v2 = match v2 {
+                Some(v) => v,
+                None => break
+            };
+
+            freq[v1] += freq[v2];
+            freq[v2] = 0;
+
+            codesize[v1] += 1;
+            while others[v1] >= 0 {
+                v1 = others[v1] as usize;
+                codesize[v1] += 1;
+            }
+
+            others[v1] = v2 as i32;
+
+            codesize[v2] += 1;
+            while others[v2] >= 0 {
+                v2 = others[v2] as usize;
+                codesize[v2] += 1;
+            }
+        }
+
+        // Find the number of codes of each size
+        // Figure K.2
+
+        let mut bits = [0u8; 33];
+
+        for &size in &codesize {
+            if size > 0 {
+                bits[size] += 1;
+            }
+        }
+
+        // Limiting code lengths to 16 bits
+        // Figure K.3
+
+        let mut i = 32;
+
+        while i > 16 {
+            while bits[i] > 0 {
+                let mut j = i - 2;
+                while bits[j] == 0 {
+                    j -= 1;
+                }
+
+                bits[i] -= 2;
+                bits[i - 1] += 1;
+                bits[j + 1] += 2;
+                bits[j] -= 1;
+            }
+
+            i -= 1;
+        }
+
+        while bits[i] == 0 {
+            i -= 1;
+        }
+        bits[i] -= 1;
+
+
+        // Sorting of input values according to code size
+        // Figure K.4
+        let mut huffval = [0u8; 256];
+
+        let mut k = 0;
+
+        for i in 1..=32 {
+            for j in 0..=255 {
+                if codesize[j] == i {
+                    huffval[k] = j as u8;
+                    k += 1;
+                }
+            }
+        }
+
+        let mut length = [0u8; 16];
+        for (i, v) in length.iter_mut().enumerate() {
+            *v = bits[i + 1];
+        }
+
+        let values = huffval[0..k].to_vec();
+
+        HuffmanTable {
+            lookup_table: create_lookup_table(&length, &values),
+            length,
+            values,
+        }
+    }
+
     pub fn get_for_value(&self, value: u8) -> (u8, u16) {
         self.lookup_table[value as usize]
     }
