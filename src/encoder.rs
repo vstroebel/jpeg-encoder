@@ -53,17 +53,6 @@ impl ColorType {
             Rgba | Bgra | Cmyk | CmykAsYcck | Ycck => 4,
         }
     }
-
-    pub(crate) fn get_jpeg_color_type(&self) -> JpegColorType {
-        use ColorType::*;
-
-        match self {
-            Gray => JpegColorType::Gray,
-            Rgb | Rgba | Bgr | Bgra | Ycbcr => JpegColorType::Ycbcr,
-            Cmyk => JpegColorType::Cmyk,
-            CmykAsYcck | Ycck => JpegColorType::Ycck,
-        }
-    }
 }
 
 pub(crate) struct Component {
@@ -167,53 +156,6 @@ impl<W: Write> JpegEncoder<W> {
                                     format!("Image data too small for dimensions and color_type: {} need at least {}", data.len(), required_data_len)));
         }
 
-        let jpeg_color_type = color_type.get_jpeg_color_type();
-        self.init_components(jpeg_color_type);
-
-        let num_components = jpeg_color_type.get_num_components();
-
-        self.writer.write_marker(Marker::SOI)?;
-
-        self.writer.write_header(&self.density)?;
-
-        if color_type == ColorType::CmykAsYcck || color_type == ColorType::Ycck {
-            //Set ColorTransform info to YCCK
-            let app_14 = b"Adobe\0\0\0\0\0\0\x02";
-            self.writer.write_segment(Marker::APP(14), app_14.as_ref())?;
-        }
-
-        self.writer.write_frame_header(width, height, &self.components, self.progressive_scans != 0)?;
-
-        self.writer.write_quantization_segment(0, &self.quantization_tables[0])?;
-        self.writer.write_quantization_segment(1, &self.quantization_tables[1])?;
-
-        self.writer.write_huffman_segment(
-            CodingClass::Dc,
-            0,
-            &self.huffman_tables[0].0,
-        )?;
-
-        self.writer.write_huffman_segment(
-            CodingClass::Ac,
-            0,
-            &self.huffman_tables[0].1,
-        )?;
-
-        if num_components >= 3 {
-            self.writer.write_huffman_segment(
-                CodingClass::Dc,
-                1,
-                &self.huffman_tables[1].0,
-            )?;
-
-            self.writer.write_huffman_segment(
-                CodingClass::Ac,
-                1,
-                &self.huffman_tables[1].1,
-            )?;
-        }
-
-
         match color_type {
             ColorType::Gray => self.encode_image(GrayImage(data, width as u32, height as u32))?,
             ColorType::Rgb => self.encode_image(RgbImage(data, width as u32, height as u32))?,
@@ -225,8 +167,6 @@ impl<W: Write> JpegEncoder<W> {
             ColorType::CmykAsYcck => self.encode_image(CmykAsYcckImage(data, width as u32, height as u32))?,
             ColorType::Ycck => self.encode_image(YcckImage(data, width as u32, height as u32))?,
         }
-
-        self.writer.write_marker(Marker::EOI)?;
 
         Ok(())
     }
@@ -268,18 +208,68 @@ impl<W: Write> JpegEncoder<W> {
         (max_h_sampling, max_v_sampling)
     }
 
-    fn encode_image<I: ImageBuffer>(
+    pub fn encode_image<I: ImageBuffer>(
         &mut self,
         image: I,
     ) -> IOResult<()> {
+        let jpeg_color_type = image.get_jpeg_color_type();
+        self.init_components(jpeg_color_type);
+
+        let num_components = jpeg_color_type.get_num_components();
+
+        self.writer.write_marker(Marker::SOI)?;
+
+        self.writer.write_header(&self.density)?;
+
+        if jpeg_color_type == JpegColorType::Ycck {
+            //Set ColorTransform info to YCCK
+            let app_14 = b"Adobe\0\0\0\0\0\0\x02";
+            self.writer.write_segment(Marker::APP(14), app_14.as_ref())?;
+        }
+
+        self.writer.write_frame_header(image.width() as u16, image.height() as u16, &self.components, self.progressive_scans != 0)?;
+
+        self.writer.write_quantization_segment(0, &self.quantization_tables[0])?;
+        self.writer.write_quantization_segment(1, &self.quantization_tables[1])?;
+
+        self.writer.write_huffman_segment(
+            CodingClass::Dc,
+            0,
+            &self.huffman_tables[0].0,
+        )?;
+
+        self.writer.write_huffman_segment(
+            CodingClass::Ac,
+            0,
+            &self.huffman_tables[0].1,
+        )?;
+
+        if num_components >= 3 {
+            self.writer.write_huffman_segment(
+                CodingClass::Dc,
+                1,
+                &self.huffman_tables[1].0,
+            )?;
+
+            self.writer.write_huffman_segment(
+                CodingClass::Ac,
+                1,
+                &self.huffman_tables[1].1,
+            )?;
+        }
+
         if self.progressive_scans != 0 {
-            self.encode_image_progressive(image)
+            self.encode_image_progressive(image)?;
         } else if self.horizontal_sampling_factor > 2 || self.vertical_sampling_factor > 2 {
             // Interleaved mode is only supported with h/v sampling factors of 1 or 2
-            self.encode_image_sequential(image)
+            self.encode_image_sequential(image)?;
         } else {
-            self.encode_image_interleaved(image)
+            self.encode_image_interleaved(image)?;
         }
+
+        self.writer.write_marker(Marker::EOI)?;
+
+        Ok(())
     }
 
     fn encode_image_interleaved<I: ImageBuffer>(
