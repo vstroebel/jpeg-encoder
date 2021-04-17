@@ -256,6 +256,54 @@ impl<W: Write> JfifWriter<W> {
         Ok(())
     }
 
+    pub fn write_dc(
+        &mut self,
+        value: i16,
+        prev_dc: i16,
+        dc_table: &HuffmanTable,
+    ) -> IOResult<()> {
+        let diff = value - prev_dc;
+        let (size, value) = Self::get_code(diff);
+
+        self.huffman_encode_value(size, size, value, dc_table)?;
+
+        Ok(())
+    }
+
+    pub fn write_ac_block(
+        &mut self,
+        block: &[i16; 64],
+        start: usize,
+        end: usize,
+        ac_table: &HuffmanTable,
+    ) -> IOResult<()> {
+        let mut zero_run = 0;
+
+        for &value in &block[start..end] {
+            if value == 0 {
+                zero_run += 1;
+            } else {
+                while zero_run > 15 {
+                    self.huffman_encode(0xF0, ac_table)?;
+                    zero_run -= 16;
+                }
+
+                let (size, value) = Self::get_code(value);
+                let symbol = (zero_run << 4) | size;
+
+                self.huffman_encode_value(size, symbol, value, ac_table)?;
+
+                zero_run = 0;
+            }
+        }
+
+        if zero_run > 0 {
+            self.huffman_encode(0x00, ac_table)?;
+        }
+
+        Ok(())
+    }
+
     fn get_code(value: i16) -> (u8, u16) {
         let sign = value >> 15;
         let temp = value + sign;
@@ -273,8 +321,12 @@ impl<W: Write> JfifWriter<W> {
         (num_bits as u8, coefficient as u16)
     }
 
-    pub fn write_frame_header(&mut self, width: u16, height: u16, components: &[Component]) -> IOResult<()> {
-        self.write_marker(Marker::SOF(SOFType::BaselineDCT))?;
+    pub fn write_frame_header(&mut self, width: u16, height: u16, components: &[Component], progressive: bool) -> IOResult<()> {
+        if progressive {
+            self.write_marker(Marker::SOF(SOFType::ProgressiveDCT))?;
+        } else {
+            self.write_marker(Marker::SOF(SOFType::BaselineDCT))?;
+        }
 
         self.write_u16(2 + 1 + 2 + 2 + 1 + (components.len() as u16) * 3)?;
 
@@ -295,7 +347,7 @@ impl<W: Write> JfifWriter<W> {
         Ok(())
     }
 
-    pub fn write_scan_header(&mut self, components: &[&Component]) -> IOResult<()> {
+    pub fn write_scan_header(&mut self, components: &[&Component], spectral: Option<(u8, u8)>) -> IOResult<()> {
         self.write_marker(Marker::SOS)?;
 
         self.write_u16(2 + 1 + (components.len() as u16) * 2 + 3)?;
@@ -307,11 +359,13 @@ impl<W: Write> JfifWriter<W> {
             self.write_u8((component.dc_huffman_table << 4) | component.ac_huffman_table)?;
         }
 
+        let spectral = spectral.unwrap_or((0, 63));
+
         // Start of spectral or predictor selection
-        self.write_u8(0)?;
+        self.write_u8(spectral.0)?;
 
         // End of spectral selection
-        self.write_u8(63)?;
+        self.write_u8(spectral.1)?;
 
         // Successive approximation bit position high and low
         self.write_u8(0)?;

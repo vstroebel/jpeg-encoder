@@ -98,6 +98,8 @@ pub struct JpegEncoder<W: Write> {
 
     horizontal_sampling_factor: u8,
     vertical_sampling_factor: u8,
+
+    progressive_scans: u8,
 }
 
 impl<W: Write> JpegEncoder<W> {
@@ -126,6 +128,7 @@ impl<W: Write> JpegEncoder<W> {
             huffman_tables,
             horizontal_sampling_factor: luma_sampling,
             vertical_sampling_factor: luma_sampling,
+            progressive_scans: 0,
         }
     }
 
@@ -136,6 +139,18 @@ impl<W: Write> JpegEncoder<W> {
     pub fn set_sampling_factor(&mut self, horizontal_factor: u8, vertical_factor: u8) {
         self.horizontal_sampling_factor = horizontal_factor;
         self.vertical_sampling_factor = vertical_factor;
+    }
+
+    pub fn set_progressive(&mut self, progressive: bool) {
+        self.progressive_scans = if progressive {
+            8
+        } else {
+            0
+        }
+    }
+
+    pub fn set_progressive_scans(&mut self, scans: u8) {
+        self.progressive_scans = scans.min(63);
     }
 
     pub fn encode(
@@ -167,7 +182,7 @@ impl<W: Write> JpegEncoder<W> {
             self.writer.write_segment(Marker::APP(14), app_14.as_ref())?;
         }
 
-        self.writer.write_frame_header(width, height, &self.components)?;
+        self.writer.write_frame_header(width, height, &self.components, self.progressive_scans != 0)?;
 
         self.writer.write_quantization_segment(0, &self.quantization_tables[0])?;
         self.writer.write_quantization_segment(1, &self.quantization_tables[1])?;
@@ -257,8 +272,10 @@ impl<W: Write> JpegEncoder<W> {
         &mut self,
         image: I,
     ) -> IOResult<()> {
-        // Interleaved mode is only supported with h/v sampling factors of 1 or 2
-        if self.horizontal_sampling_factor > 2 || self.vertical_sampling_factor > 2 {
+        if self.progressive_scans != 0 {
+            self.encode_image_progressive(image)
+        } else if self.horizontal_sampling_factor > 2 || self.vertical_sampling_factor > 2 {
+            // Interleaved mode is only supported with h/v sampling factors of 1 or 2
             self.encode_image_sequential(image)
         } else {
             self.encode_image_interleaved(image)
@@ -269,7 +286,7 @@ impl<W: Write> JpegEncoder<W> {
         &mut self,
         image: I,
     ) -> IOResult<()> {
-        self.writer.write_scan_header(&self.components.iter().collect::<Vec<_>>())?;
+        self.writer.write_scan_header(&self.components.iter().collect::<Vec<_>>(), None)?;
 
         let (max_h_sampling, max_v_sampling) = self.get_max_sampling_size();
 
@@ -370,6 +387,87 @@ impl<W: Write> JpegEncoder<W> {
         &mut self,
         image: I,
     ) -> IOResult<()> {
+        let blocks = self.encode_blocks(image);
+
+        for (i, component) in self.components.iter().enumerate() {
+            self.writer.write_scan_header(&[component], None)?;
+
+            let mut prev_dc = 0;
+
+            for block in &blocks[i] {
+                self.writer.write_block(
+                    &block,
+                    prev_dc,
+                    &self.huffman_tables[component.dc_huffman_table as usize].0,
+                    &self.huffman_tables[component.ac_huffman_table as usize].1,
+                )?;
+
+                prev_dc = block[0];
+            }
+
+            self.writer.finalize_bit_buffer()?;
+        }
+
+        Ok(())
+    }
+
+    fn encode_image_progressive<I: ImageBuffer>(
+        &mut self,
+        image: I,
+    ) -> IOResult<()> {
+        let blocks = self.encode_blocks(image);
+
+        for (i, component) in self.components.iter().enumerate() {
+            self.writer.write_scan_header(&[component], Some((0, 0)))?;
+
+            let mut prev_dc = 0;
+
+            for block in &blocks[i] {
+                self.writer.write_dc(
+                    block[0],
+                    prev_dc,
+                    &self.huffman_tables[component.dc_huffman_table as usize].0,
+                )?;
+
+                prev_dc = block[0];
+            }
+
+            self.writer.finalize_bit_buffer()?;
+        }
+
+        let scans = self.progressive_scans as usize;
+
+        let values_per_scan = 64 / scans;
+
+        for scan in 0..scans {
+            let start = (scan * values_per_scan).max(1);
+            let end = if scan == scans - 1 {
+                // Due to rounding we might need to transfer more than values_per_scan values in the last scan
+                64
+            } else {
+                (scan + 1) * values_per_scan
+            };
+
+            for (i, component) in self.components.iter().enumerate() {
+                self.writer.write_scan_header(&[component], Some((start as u8, end as u8 - 1)))?;
+
+                for block in &blocks[i] {
+                    self.writer.write_ac_block(
+                        &block,
+                        start,
+                        end,
+                        &self.huffman_tables[component.ac_huffman_table as usize].1,
+                    )?;
+                }
+
+                self.writer.finalize_bit_buffer()?;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn encode_blocks<I: ImageBuffer>(&mut self, image: I) -> [Vec<[i16; 64]>; 4] {
         let num_cols = ceil_div(image.width(), 8);
         let num_rows = ceil_div(image.height(), 8);
 
@@ -383,7 +481,6 @@ impl<W: Write> JpegEncoder<W> {
                 image.fill_buffers(x, y, &mut row);
             }
         }
-
 
         let mut blocks: [Vec<_>; 4] = self.init_block_buffers(buffer_size / 64);
 
@@ -415,27 +512,7 @@ impl<W: Write> JpegEncoder<W> {
                 }
             }
         }
-
-        for (i, component) in self.components.iter().enumerate() {
-            self.writer.write_scan_header(&[component])?;
-
-            let mut prev_dc = 0;
-
-            for block in &blocks[i] {
-                self.writer.write_block(
-                    &block,
-                    prev_dc,
-                    &self.huffman_tables[component.dc_huffman_table as usize].0,
-                    &self.huffman_tables[component.ac_huffman_table as usize].1,
-                )?;
-
-                prev_dc = block[0];
-            }
-
-            self.writer.finalize_bit_buffer()?;
-        }
-
-        Ok(())
+        blocks
     }
 
     fn init_block_buffers(&mut self, buffer_size: usize) -> [Vec<[i16; 64]>; 4] {
