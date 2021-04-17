@@ -580,26 +580,65 @@ impl<W: Write> JpegEncoder<W> {
                 }
 
                 if component.ac_huffman_table == table {
-                    for block in &blocks[i] {
-                        let mut zero_run = 0;
+                    if self.progressive_scans > 0 {
+                        let scans = self.progressive_scans as usize;
 
-                        for &value in &block[1..] {
-                            if value == 0 {
-                                zero_run += 1;
+                        let values_per_scan = 64 / scans;
+
+                        for scan in 0..scans {
+                            let start = (scan * values_per_scan).max(1);
+                            let end = if scan == scans - 1 {
+                                // Due to rounding we might need to transfer more than values_per_scan values in the last scan
+                                64
                             } else {
-                                while zero_run > 15 {
-                                    ac_freq[0xF0] += 1;
-                                    zero_run -= 16;
-                                }
-                                let num_bits = get_num_bits(value);
-                                let symbol = (zero_run << 4) | num_bits;
+                                (scan + 1) * values_per_scan
+                            };
 
-                                ac_freq[symbol as usize] += 1;
+                            for block in &blocks[i] {
+                                let mut zero_run = 0;
+
+                                for &value in &block[start..end] {
+                                    if value == 0 {
+                                        zero_run += 1;
+                                    } else {
+                                        while zero_run > 15 {
+                                            ac_freq[0xF0] += 1;
+                                            zero_run -= 16;
+                                        }
+                                        let num_bits = get_num_bits(value);
+                                        let symbol = (zero_run << 4) | num_bits;
+
+                                        ac_freq[symbol as usize] += 1;
+                                    }
+                                }
+
+                                if zero_run > 0 {
+                                    ac_freq[0] += 1;
+                                }
                             }
                         }
+                    } else {
+                        for block in &blocks[i] {
+                            let mut zero_run = 0;
 
-                        if zero_run > 0 {
-                            ac_freq[0] += 1;
+                            for &value in &block[1..] {
+                                if value == 0 {
+                                    zero_run += 1;
+                                } else {
+                                    while zero_run > 15 {
+                                        ac_freq[0xF0] += 1;
+                                        zero_run -= 16;
+                                    }
+                                    let num_bits = get_num_bits(value);
+                                    let symbol = (zero_run << 4) | num_bits;
+
+                                    ac_freq[symbol as usize] += 1;
+                                }
+                            }
+
+                            if zero_run > 0 {
+                                ac_freq[0] += 1;
+                            }
                         }
                     }
                 }
