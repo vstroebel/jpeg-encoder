@@ -609,6 +609,8 @@ impl<W: Write> JpegEncoder<W> {
                                         let symbol = (zero_run << 4) | num_bits;
 
                                         ac_freq[symbol as usize] += 1;
+
+                                        zero_run = 0;
                                     }
                                 }
 
@@ -633,6 +635,8 @@ impl<W: Write> JpegEncoder<W> {
                                     let symbol = (zero_run << 4) | num_bits;
 
                                     ac_freq[symbol as usize] += 1;
+
+                                    zero_run = 0;
                                 }
                             }
 
