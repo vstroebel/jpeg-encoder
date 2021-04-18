@@ -59,9 +59,6 @@ impl<'a> ImageBuffer for GrayImage<'a> {
     }
 
     fn fill_buffers(&self, x: u32, y: u32, buffers: &mut [Vec<u8>; 4]) {
-        let x = x.min(self.1 as u32 - 1);
-        let y = y.min(self.2 as u32 - 1);
-
         let offset = (y * self.1 + x) as usize;
 
         buffers[0].push(self.0[offset + 0]);
@@ -87,9 +84,6 @@ macro_rules! ycbcr_image {
 
             #[inline(always)]
             fn fill_buffers(&self, x: u32, y: u32, buffers: &mut [Vec<u8>; 4]) {
-                let x = x.min(self.1 as u32 - 1);
-                let y = y.min(self.2 as u32 - 1);
-
                 let offset = (y * self.1 + x) as usize * $num_colors;
                 let (y, cb, cr) = rgb_to_ycbcr(self.0[offset + $o1], self.0[offset + $o2], self.0[offset + $o3]);
 
@@ -122,9 +116,6 @@ impl<'a> ImageBuffer for YCbCrImage<'a> {
     }
 
     fn fill_buffers(&self, x: u32, y: u32, buffers: &mut [Vec<u8>; 4]) {
-        let x = x.min(self.1 as u32 - 1);
-        let y = y.min(self.2 as u32 - 1);
-
         let offset = (y * self.1 + x) as usize * 3;
 
         buffers[0].push(self.0[offset + 0]);
@@ -149,9 +140,6 @@ impl<'a> ImageBuffer for CmykImage<'a> {
     }
 
     fn fill_buffers(&self, x: u32, y: u32, buffers: &mut [Vec<u8>; 4]) {
-        let x = x.min(self.1 as u32 - 1);
-        let y = y.min(self.2 as u32 - 1);
-
         let offset = (y * self.1 + x) as usize * 4;
 
         buffers[0].push(self.0[offset + 0]);
@@ -177,9 +165,6 @@ impl<'a> ImageBuffer for CmykAsYcckImage<'a> {
     }
 
     fn fill_buffers(&self, x: u32, y: u32, buffers: &mut [Vec<u8>; 4]) {
-        let x = x.min(self.1 as u32 - 1);
-        let y = y.min(self.2 as u32 - 1);
-
         let offset = (y * self.1 + x) as usize * 4;
         let (y, cb, cr, k) = cmyk_to_ycck(
             self.0[offset + 0],
@@ -210,9 +195,6 @@ impl<'a> ImageBuffer for YcckImage<'a> {
     }
 
     fn fill_buffers(&self, x: u32, y: u32, buffers: &mut [Vec<u8>; 4]) {
-        let x = x.min(self.1 as u32 - 1);
-        let y = y.min(self.2 as u32 - 1);
-
         let offset = (y * self.1 + x) as usize * 4;
 
         buffers[0].push(self.0[offset + 0]);

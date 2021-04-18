@@ -290,8 +290,11 @@ impl<W: Write> JpegEncoder<W> {
 
         let (max_h_sampling, max_v_sampling) = self.get_max_sampling_size();
 
-        let num_cols = ceil_div(image.width(), 8 * max_h_sampling);
-        let num_rows = ceil_div(image.height(), 8 * max_v_sampling);
+        let width = image.width();
+        let height = image.height();
+
+        let num_cols = ceil_div(width, 8 * max_h_sampling);
+        let num_rows = ceil_div(height, 8 * max_v_sampling);
 
         let buffer_width = (num_cols * 8 * max_h_sampling) as usize;
         let buffer_size = buffer_width * 8 * max_v_sampling as usize;
@@ -306,8 +309,14 @@ impl<W: Write> JpegEncoder<W> {
             }
 
             for y in 0..(8 * max_v_sampling) {
-                for x in 0..buffer_width as u32 {
-                    image.fill_buffers(x, y + block_y * 8 * max_v_sampling, &mut row);
+                let y = y + block_y * 8 * max_v_sampling;
+                let y = y.min(height - 1);
+
+                for x in 0..image.width() as u32 {
+                    image.fill_buffers(x, y, &mut row);
+                }
+                for _ in width..buffer_width as u32 {
+                    image.fill_buffers(width - 1, y, &mut row);
                 }
             }
 
@@ -480,8 +489,11 @@ impl<W: Write> JpegEncoder<W> {
     }
 
     fn encode_blocks<I: ImageBuffer>(&mut self, image: &I) -> [Vec<[i16; 64]>; 4] {
-        let num_cols = ceil_div(image.width(), 8);
-        let num_rows = ceil_div(image.height(), 8);
+        let width = image.width();
+        let height = image.height();
+
+        let num_cols = ceil_div(width, 8);
+        let num_rows = ceil_div(height, 8);
 
         let buffer_width = (num_cols * 8) as usize;
         let buffer_size = (num_cols * num_rows * 64) as usize;
@@ -489,8 +501,13 @@ impl<W: Write> JpegEncoder<W> {
         let mut row: [Vec<_>; 4] = self.init_rows(buffer_size);
 
         for y in 0..num_rows * 8 {
-            for x in 0..num_cols * 8 {
+            let y = y.min(height - 1);
+
+            for x in 0..width {
                 image.fill_buffers(x, y, &mut row);
+            }
+            for _ in width..num_cols * 8 {
+                image.fill_buffers(width - 1, y, &mut row);
             }
         }
 
