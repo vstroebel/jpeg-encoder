@@ -9,6 +9,11 @@ license = "MIT OR Apache-2.0"
 
 [dev-dependencies]
 jpeg-decoder = "0.1.22"
+criterion = "0.3"
 
 [profile.dev]
 opt-level = 1
+
+[[bench]]
+name = "encode"
+harness = false
