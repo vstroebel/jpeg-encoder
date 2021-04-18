@@ -229,7 +229,7 @@ impl<W: Write> JfifWriter<W> {
         for (i, &value) in block.iter().enumerate() {
             if i == 0 {
                 let diff = value - prev_dc;
-                let (size, value) = Self::get_code(diff);
+                let (size, value) = get_code(diff);
 
                 self.huffman_encode_value(size, size, value, dc_table)?;
             } else if value == 0 {
@@ -240,7 +240,7 @@ impl<W: Write> JfifWriter<W> {
                     zero_run -= 16;
                 }
 
-                let (size, value) = Self::get_code(value);
+                let (size, value) = get_code(value);
                 let symbol = (zero_run << 4) | size;
 
                 self.huffman_encode_value(size, symbol, value, ac_table)?;
@@ -263,7 +263,7 @@ impl<W: Write> JfifWriter<W> {
         dc_table: &HuffmanTable,
     ) -> IOResult<()> {
         let diff = value - prev_dc;
-        let (size, value) = Self::get_code(diff);
+        let (size, value) = get_code(diff);
 
         self.huffman_encode_value(size, size, value, dc_table)?;
 
@@ -288,7 +288,7 @@ impl<W: Write> JfifWriter<W> {
                     zero_run -= 16;
                 }
 
-                let (size, value) = Self::get_code(value);
+                let (size, value) = get_code(value);
                 let symbol = (zero_run << 4) | size;
 
                 self.huffman_encode_value(size, symbol, value, ac_table)?;
@@ -302,23 +302,6 @@ impl<W: Write> JfifWriter<W> {
         }
 
         Ok(())
-    }
-
-    fn get_code(value: i16) -> (u8, u16) {
-        let sign = value >> 15;
-        let temp = value + sign;
-        let mut temp2 = (sign ^ temp) as u16;
-
-        let mut num_bits = 0;
-
-        while temp2 > 0 {
-            num_bits += 1;
-            temp2 >>= 1;
-        }
-
-        let coefficient = temp & ((1 << num_bits as usize) - 1);
-
-        (num_bits as u8, coefficient as u16)
     }
 
     pub fn write_frame_header(&mut self, width: u16, height: u16, components: &[Component], progressive: bool) -> IOResult<()> {
@@ -374,3 +357,19 @@ impl<W: Write> JfifWriter<W> {
     }
 }
 
+pub(crate) fn get_code(value: i16) -> (u8, u16) {
+    let sign = value >> 15;
+    let temp = value + sign;
+    let mut temp2 = (sign ^ temp) as u16;
+
+    let mut num_bits = 0;
+
+    while temp2 > 0 {
+        num_bits += 1;
+        temp2 >>= 1;
+    }
+
+    let coefficient = temp & ((1 << num_bits as usize) - 1);
+
+    (num_bits as u8, coefficient as u16)
+}

@@ -698,3 +698,21 @@ fn get_num_bits(mut value: i16) -> u8 {
 
     num_bits
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::encoder::get_num_bits;
+    use crate::writer::get_code;
+
+    #[test]
+    fn test_get_num_bits() {
+        let min_max = 2i16.pow(13);
+
+        for value in -min_max..=min_max {
+            let num_bits1 = get_num_bits(value);
+            let (num_bits2, _) = get_code(value);
+
+            assert_eq!(num_bits1, num_bits2, "Difference in num bits for value {}: {} vs {}", value, num_bits1, num_bits2);
+        }
+    }
+}
