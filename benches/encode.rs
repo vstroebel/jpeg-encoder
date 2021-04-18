@@ -55,7 +55,7 @@ fn criterion_benchmark(c: &mut Criterion) {
     let (data, width, height) = create_bench_img();
 
     let mut group = c.benchmark_group("encode rgb");
-    group.measurement_time(Duration::from_secs(15));
+    group.measurement_time(Duration::from_secs(25));
 
     group.bench_function("encode rgb 100", |b| b.iter(|| encode_rgb_100(
         black_box(&mut res),
