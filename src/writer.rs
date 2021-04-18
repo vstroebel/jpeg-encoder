@@ -202,11 +202,13 @@ impl<W: Write> JfifWriter<W> {
         Ok(())
     }
 
+    #[inline]
     pub fn huffman_encode(&mut self, val: u8, table: &HuffmanTable) -> IOResult<()> {
         let (size, code) = table.get_for_value(val);
         self.write_bits(code as u32, size)
     }
 
+    #[inline]
     pub fn huffman_encode_value(&mut self, size: u8, symbol: u8, value: u16, table: &HuffmanTable) -> IOResult<()> {
         let (num_bits, code) = table.get_for_value(symbol);
 
@@ -357,6 +359,7 @@ impl<W: Write> JfifWriter<W> {
     }
 }
 
+#[inline]
 pub(crate) fn get_code(value: i16) -> (u8, u16) {
     let sign = value >> 15;
     let temp = value + sign;

@@ -12,6 +12,7 @@ use crate::encoder::JpegColorType;
 /// Cb = -0.16874 * R - 0.33126 * G + 0.50000 * B  + 128
 /// Cr =  0.50000 * R - 0.41869 * G - 0.08131 * B  + 128
 ///
+#[inline]
 pub fn rgb_to_ycbcr(r: u8, g: u8, b: u8) -> (u8, u8, u8) {
     let r = r as i32;
     let g = g as i32;
