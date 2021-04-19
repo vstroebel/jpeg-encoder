@@ -5,10 +5,16 @@ use crate::encoder::Component;
 
 use std::io::{Write, Result as IOResult};
 
-#[derive(Debug)]
+/// Density settings
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum Density {
+    /// No pixel density is set, which means "1 pixel per pixel"
     None,
+
+    /// Horizontal and vertical dots per inch (dpi)
     Inch { x: u16, y: u16 },
+
+    /// Horizontal and vertical dots per centimeters
     Centimeter { x: u16, y: u16 },
 }
 

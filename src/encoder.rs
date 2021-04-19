@@ -124,8 +124,29 @@ impl<W: Write> JpegEncoder<W> {
         }
     }
 
+    /// Set pixel density for the image
+    ///
+    /// By default, this value is None which is equal to "1 pixel per pixel".
+    /// # Example
+    /// ```no_run
+    /// # fn main() -> std::io::Result<()> {
+    /// use jpeg_encoder::{JpegEncoder, Density};
+    ///
+    /// let mut encoder = JpegEncoder::new_file("some.jpeg", 100)?;
+    ///
+    /// // Set horizontal and vertical density to 72 dpi (dots per inch)
+    /// encoder.set_density(Density::Inch{x: 72, y: 72});
+    ///
+    /// assert_eq!(encoder.density(), Density::Inch{x: 72, y: 72});
+    /// # Ok(())
+    /// # }
     pub fn set_density(&mut self, density: Density) {
         self.density = density;
+    }
+
+    /// Return pixel density
+    pub fn density(&self) -> Density {
+        self.density
     }
 
     pub fn set_sampling_factor(&mut self, horizontal_factor: u8, vertical_factor: u8) {
