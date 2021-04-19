@@ -48,7 +48,7 @@ pub(crate) struct GrayImage<'a>(pub &'a [u8], pub u32, pub u32);
 
 impl<'a> ImageBuffer for GrayImage<'a> {
     fn get_jpeg_color_type(&self) -> JpegColorType {
-        JpegColorType::Gray
+        JpegColorType::Luma
     }
 
     fn width(&self) -> u32 {

@@ -76,7 +76,7 @@ mod tests {
 
         let mut result = Vec::new();
         let mut encoder = JpegEncoder::new(&mut result, 100);
-        encoder.encode(&data, width, height, ColorType::Gray).unwrap();
+        encoder.encode(&data, width, height, ColorType::Luma).unwrap();
 
         check_result(data, width, height, &mut result, PixelFormat::L8);
     }

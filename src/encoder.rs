@@ -12,7 +12,7 @@ use std::path::Path;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum JpegColorType {
-    Gray,
+    Luma,
     Ycbcr,
     Cmyk,
     Ycck,
@@ -23,7 +23,7 @@ impl JpegColorType {
         use JpegColorType::*;
 
         match self {
-            Gray => 1,
+            Luma => 1,
             Ycbcr => 3,
             Cmyk | Ycck => 4,
         }
@@ -32,7 +32,7 @@ impl JpegColorType {
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum ColorType {
-    Gray,
+    Luma,
     Rgb,
     Rgba,
     Bgr,
@@ -48,7 +48,7 @@ impl ColorType {
         use ColorType::*;
 
         match self {
-            Gray => 1,
+            Luma => 1,
             Rgb | Bgr | Ycbcr => 3,
             Rgba | Bgra | Cmyk | CmykAsYcck | Ycck => 4,
         }
@@ -164,7 +164,7 @@ impl<W: Write> JpegEncoder<W> {
         }
 
         match color_type {
-            ColorType::Gray => self.encode_image(GrayImage(data, width as u32, height as u32))?,
+            ColorType::Luma => self.encode_image(GrayImage(data, width as u32, height as u32))?,
             ColorType::Rgb => self.encode_image(RgbImage(data, width as u32, height as u32))?,
             ColorType::Rgba => self.encode_image(RgbaImage(data, width as u32, height as u32))?,
             ColorType::Bgr => self.encode_image(BgrImage(data, width as u32, height as u32))?,
@@ -180,7 +180,7 @@ impl<W: Write> JpegEncoder<W> {
 
     fn init_components(&mut self, color: JpegColorType) {
         match color {
-            JpegColorType::Gray => {
+            JpegColorType::Luma => {
                 add_component!(self.components, 0, 0, 1, 1);
             }
             JpegColorType::Ycbcr => {
