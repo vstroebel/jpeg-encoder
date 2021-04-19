@@ -133,16 +133,50 @@ impl<W: Write> JpegEncoder<W> {
         self.vertical_sampling_factor = vertical_factor;
     }
 
+    /// Controls if progressive encoding is used.
+    ///
+    /// By default, progressive encoding uses 4 scans.<br>
+    /// Use [set_progressive_scans](JpegEncoder::set_progressive_scans) to use a different number of scans
+    ///
+    /// # Example
+    /// ```no_run
+    /// # pub fn main() -> std::io::Result<()> {
+    /// use jpeg_encoder::JpegEncoder;
+    ///
+    /// let mut encoder = JpegEncoder::new_file("some.jpeg", 100)?;
+    ///
+    /// encoder.set_progressive(true);
+    ///
+    /// assert_eq!(encoder.progressive_scans(), Some(4));
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn set_progressive(&mut self, progressive: bool) {
-        self.progressive_scans = if progressive {
-            8
+        self.set_progressive_scans(if progressive {
+            4
         } else {
             0
-        }
+        });
     }
 
+    /// Set number of scans per component for progressive encoding
+    ///
+    /// Number of scans must be between 2 and 64.
+    /// There is at least one scan for the DC coefficients and one for the remaining 63 AC coefficients.
+    ///
+    /// # Panics
+    /// If number of scans is not within valid range
     pub fn set_progressive_scans(&mut self, scans: u8) {
-        self.progressive_scans = scans.min(63);
+        assert!(scans >= 2 && scans <= 64, "Invalid number of scans: {}", scans);
+        self.progressive_scans = scans;
+    }
+
+    /// Return number of progressive scans if progressive encoding is enabled
+    pub fn progressive_scans(&self) -> Option<u8> {
+        match self.progressive_scans {
+            0 => None,
+            scans => Some(scans)
+        }
     }
 
     pub fn set_optimized_huffman_tables(&mut self, optimize_huffman_table: bool) {
@@ -456,7 +490,7 @@ impl<W: Write> JpegEncoder<W> {
             self.writer.finalize_bit_buffer()?;
         }
 
-        let scans = self.progressive_scans as usize;
+        let scans = self.progressive_scans as usize - 1;
 
         let values_per_scan = 64 / scans;
 
@@ -598,7 +632,7 @@ impl<W: Write> JpegEncoder<W> {
 
                 if component.ac_huffman_table == table {
                     if self.progressive_scans > 0 {
-                        let scans = self.progressive_scans as usize;
+                        let scans = self.progressive_scans as usize - 1;
 
                         let values_per_scan = 64 / scans;
 
