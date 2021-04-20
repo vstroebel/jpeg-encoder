@@ -93,7 +93,7 @@ mod tests {
         let (data, width, height) = create_test_img_gray();
 
         let mut result = Vec::new();
-        let mut encoder = JpegEncoder::new(&mut result, 100);
+        let encoder = JpegEncoder::new(&mut result, 100);
         encoder.encode(&data, width, height, ColorType::Luma).unwrap();
 
         check_result(data, width, height, &mut result, PixelFormat::L8);
@@ -104,7 +104,7 @@ mod tests {
         let (data, width, height) = create_test_img_rgb();
 
         let mut result = Vec::new();
-        let mut encoder = JpegEncoder::new(&mut result, 100);
+        let encoder = JpegEncoder::new(&mut result, 100);
         encoder.encode(&data, width, height, ColorType::Rgb).unwrap();
 
         check_result(data, width, height, &mut result, PixelFormat::RGB24);
@@ -115,7 +115,7 @@ mod tests {
         let (data, width, height) = create_test_img_rgb();
 
         let mut result = Vec::new();
-        let mut encoder = JpegEncoder::new(&mut result, 80);
+        let encoder = JpegEncoder::new(&mut result, 80);
         encoder.encode(&data, width, height, ColorType::Rgb).unwrap();
 
         check_result(data, width, height, &mut result, PixelFormat::RGB24);
@@ -229,7 +229,7 @@ mod tests {
         let (data, width, height) = create_test_img_cmyk();
 
         let mut result = Vec::new();
-        let mut encoder = JpegEncoder::new(&mut result, 100);
+        let encoder = JpegEncoder::new(&mut result, 100);
         encoder.encode(&data, width, height, ColorType::Cmyk).unwrap();
 
         check_result(data, width, height, &mut result, PixelFormat::CMYK32);
@@ -240,7 +240,7 @@ mod tests {
         let (data, width, height) = create_test_img_cmyk();
 
         let mut result = Vec::new();
-        let mut encoder = JpegEncoder::new(&mut result, 100);
+        let encoder = JpegEncoder::new(&mut result, 100);
         encoder.encode(&data, width, height, ColorType::CmykAsYcck).unwrap();
 
         check_result(data, width, height, &mut result, PixelFormat::CMYK32);

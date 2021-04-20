@@ -256,7 +256,7 @@ impl<W: Write> JpegEncoder<W> {
     }
 
     pub fn encode(
-        &mut self,
+        self,
         data: &[u8],
         width: u16,
         height: u16,
@@ -322,7 +322,7 @@ impl<W: Write> JpegEncoder<W> {
     }
 
     pub fn encode_image<I: ImageBuffer>(
-        &mut self,
+        mut self,
         image: I,
     ) -> IOResult<()> {
         let jpeg_color_type = image.get_jpeg_color_type();
