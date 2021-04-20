@@ -86,8 +86,7 @@ impl ColorType {
 /// Sampling factors for chroma subsampling
 ///
 /// # Warning
-/// Factors with horizontal oder vertical sampling factor of 4 are
-/// not be supported by all encoders or applications
+/// Sampling factor of 4 are not supported by all encoders or applications
 pub enum SamplingFactor {
     /// No subsampling (1x1)
     R4_4_4 = 1 << 4 | 1,
