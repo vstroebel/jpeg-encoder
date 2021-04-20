@@ -8,7 +8,7 @@ mod encoder;
 
 pub use writer::Density;
 pub use encoder::{ColorType, JpegColorType, Encoder};
-pub use image_buffer::ImageBuffer;
+pub use image_buffer::{ImageBuffer, rgb_to_ycbcr, cmyk_to_ycck};
 
 
 #[cfg(test)]
