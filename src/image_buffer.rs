@@ -29,6 +29,7 @@ pub fn rgb_to_ycbcr(r: u8, g: u8, b: u8) -> (u8, u8, u8) {
     (y as u8, cb as u8, cr as u8)
 }
 
+#[inline]
 pub fn cmyk_to_ycck(c: u8, m: u8, y: u8, k: u8) -> (u8, u8, u8, u8) {
     let (y, cb, cr) = rgb_to_ycbcr(c, m, y);
     (y, cb, cr, 255 - k)
