@@ -36,13 +36,61 @@ pub fn cmyk_to_ycck(c: u8, m: u8, y: u8, k: u8) -> (u8, u8, u8, u8) {
     (y, cb, cr, 255 - k)
 }
 
+/// # Buffer used as input value for image encoding
+///
+/// Image encoding with [Encoder::encode_image](crate::Encoder::encode_image) needs an ImageBuffer
+/// as input for the image data. For convenience the [Encoder::encode](crate::Encoder::encode)
+/// function contains implementaions for common byte based pixel formats.
+/// Users that needs other pixel formats or don't have the data available as byte slices
+/// can create their own buffer implementations.
+///
+/// ## Example: ImageBuffer implementation for RgbImage from the `image` crate
+/// ```no_run
+/// use image::RgbImage;
+/// use jpeg_encoder::{ImageBuffer, JpegColorType, rgb_to_ycbcr};
+///
+/// pub struct RgbImageBuffer {
+///     image: RgbImage,
+/// }
+///
+/// impl ImageBuffer for RgbImageBuffer {
+///     fn get_jpeg_color_type(&self) -> JpegColorType {
+///         // Rgb images are encoded as YCbCr in JFIF files
+///         JpegColorType::Ycbcr
+///     }
+///
+///     fn width(&self) -> u16 {
+///         self.image.width() as u16
+///     }
+///
+///     fn height(&self) -> u16 {
+///         self.image.height() as u16
+///     }
+///
+///     fn fill_buffers(&self, x: u16, y: u16, buffers: &mut [Vec<u8>; 4]){
+///         let pixel = self.image.get_pixel(x as u32 ,y as u32);
+///
+///         let (y,cb,cr) = rgb_to_ycbcr(pixel[0], pixel[1], pixel[2]);
+///
+///         // For YCbCr the 4th buffer is not used
+///         buffers[0].push(y);
+///         buffers[1].push(cb);
+///         buffers[2].push(cr);
+///     }
+/// }
+///
+/// ```
 pub trait ImageBuffer {
+    /// The color type used in the image encoding
     fn get_jpeg_color_type(&self) -> JpegColorType;
 
+    /// Width of the image
     fn width(&self) -> u16;
 
+    /// Height of the image
     fn height(&self) -> u16;
 
+    /// Add color values for the position to color component buffers
     fn fill_buffers(&self, x: u16, y: u16, buffers: &mut [Vec<u8>; 4]);
 }
 

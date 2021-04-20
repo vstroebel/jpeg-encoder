@@ -8,6 +8,7 @@ license = "MIT OR Apache-2.0"
 [dependencies]
 
 [dev-dependencies]
+image = { version = "0.23", default-features = false }
 jpeg-decoder = "0.1.22"
 criterion = "0.3"
 
