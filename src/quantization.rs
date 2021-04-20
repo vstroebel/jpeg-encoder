@@ -29,7 +29,7 @@ pub struct QuantizationTable {
 
 impl QuantizationTable {
     pub fn new_with_quality(table: [u8; 64], quality: u8) -> QuantizationTable {
-        let quality = quality.clamp(1, 100) as u32;
+        let quality = quality.max(1).min(100) as u32;
 
         let scale = if quality < 50 {
             5000 / quality
@@ -44,7 +44,7 @@ impl QuantizationTable {
 
             let v = (v * scale + 50) / 100;
 
-            q_table[i] = NonZeroU8::new(v.clamp(1, 255) as u8).unwrap();
+            q_table[i] = NonZeroU8::new(v.max(1).min(255) as u8).unwrap();
         }
 
         QuantizationTable {
