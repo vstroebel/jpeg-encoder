@@ -50,6 +50,24 @@ mod tests {
         (data, width as u16, height as u16)
     }
 
+    fn create_test_img_cmyk() -> (Vec<u8>, u16, u16) {
+        let width = 255;
+        let height = 192;
+
+        let mut data = Vec::with_capacity(width * height * 4);
+
+        for y in 0..height {
+            for x in 0..width {
+                data.push(x as u8);
+                data.push((y * 3 / 2) as u8);
+                data.push(((x + y * 3 / 2) / 2) as u8);
+                data.push((255 - (x + y) / 2) as u8);
+            }
+        }
+
+        (data, width as u16, height as u16)
+    }
+
     fn decode(data: &[u8]) -> (Vec<u8>, ImageInfo) {
         let mut decoder = Decoder::new(data);
 
@@ -204,5 +222,27 @@ mod tests {
         encoder.encode(&data, width, height, ColorType::Rgb).unwrap();
 
         check_result(data, width, height, &mut result, PixelFormat::RGB24);
+    }
+
+    #[test]
+    fn test_cmyk() {
+        let (data, width, height) = create_test_img_cmyk();
+
+        let mut result = Vec::new();
+        let mut encoder = JpegEncoder::new(&mut result, 100);
+        encoder.encode(&data, width, height, ColorType::Cmyk).unwrap();
+
+        check_result(data, width, height, &mut result, PixelFormat::CMYK32);
+    }
+
+    #[test]
+    fn test_ycck() {
+        let (data, width, height) = create_test_img_cmyk();
+
+        let mut result = Vec::new();
+        let mut encoder = JpegEncoder::new(&mut result, 100);
+        encoder.encode(&data, width, height, ColorType::CmykAsYcck).unwrap();
+
+        check_result(data, width, height, &mut result, PixelFormat::CMYK32);
     }
 }

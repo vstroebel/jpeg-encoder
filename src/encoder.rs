@@ -281,7 +281,11 @@ impl<W: Write> JpegEncoder<W> {
 
         self.writer.write_header(&self.density)?;
 
-        if jpeg_color_type == JpegColorType::Ycck {
+        if jpeg_color_type == JpegColorType::Cmyk {
+            //Set ColorTransform info to "Unknown"
+            let app_14 = b"Adobe\0\0\0\0\0\0\0";
+            self.writer.write_segment(Marker::APP(14), app_14.as_ref())?;
+        } else if jpeg_color_type == JpegColorType::Ycck {
             //Set ColorTransform info to YCCK
             let app_14 = b"Adobe\0\0\0\0\0\0\x02";
             self.writer.write_segment(Marker::APP(14), app_14.as_ref())?;

@@ -30,8 +30,8 @@ pub fn rgb_to_ycbcr(r: u8, g: u8, b: u8) -> (u8, u8, u8) {
 }
 
 pub fn cmyk_to_ycck(c: u8, m: u8, y: u8, k: u8) -> (u8, u8, u8, u8) {
-    let (y, cb, cr) = rgb_to_ycbcr(255 - c, 255 - m, 255 - y);
-    (y, cb, cr, k)
+    let (y, cb, cr) = rgb_to_ycbcr(c, m, y);
+    (y, cb, cr, 255 - k)
 }
 
 pub trait ImageBuffer {
@@ -143,10 +143,10 @@ impl<'a> ImageBuffer for CmykImage<'a> {
     fn fill_buffers(&self, x: u32, y: u32, buffers: &mut [Vec<u8>; 4]) {
         let offset = (y * self.1 + x) as usize * 4;
 
-        buffers[0].push(self.0[offset + 0]);
-        buffers[1].push(self.0[offset + 1]);
-        buffers[2].push(self.0[offset + 2]);
-        buffers[3].push(self.0[offset + 3]);
+        buffers[0].push(255 - self.0[offset + 0]);
+        buffers[1].push(255 - self.0[offset + 1]);
+        buffers[2].push(255 - self.0[offset + 2]);
+        buffers[3].push(255 - self.0[offset + 3]);
     }
 }
 
