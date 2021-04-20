@@ -91,6 +91,8 @@ pub struct JpegEncoder<W: Write> {
     progressive_scans: u8,
 
     optimize_huffman_table: bool,
+
+    app_segments: Vec<(u8, Vec<u8>)>,
 }
 
 impl<W: Write> JpegEncoder<W> {
@@ -121,6 +123,7 @@ impl<W: Write> JpegEncoder<W> {
             vertical_sampling_factor: luma_sampling,
             progressive_scans: 0,
             optimize_huffman_table: false,
+            app_segments: Vec::new(),
         }
     }
 
@@ -202,6 +205,54 @@ impl<W: Write> JpegEncoder<W> {
 
     pub fn set_optimized_huffman_tables(&mut self, optimize_huffman_table: bool) {
         self.optimize_huffman_table = optimize_huffman_table;
+    }
+
+    /// Appends a custom app segment to the JFIF file
+    ///
+    /// Segment numbers need to be in the range between 1 and 15<br>
+    /// The maximum allowed data length is 2^16 - 2 bytes.
+    pub fn add_app_segment(&mut self, segment_nr: u8, data: &[u8]) -> IOResult<()> {
+        if segment_nr == 0 || segment_nr > 15 {
+            Err(IOError::new(ErrorKind::Other, format!("Wrong app segment number: {}", segment_nr)))
+        } else if data.len() > 65533 {
+            Err(IOError::new(ErrorKind::Other, format!("App segment exceeds maximum allow data length of 65533: {}", data.len())))
+        } else {
+            self.app_segments.push((segment_nr, data.to_vec()));
+            Ok(())
+        }
+    }
+
+    /// Add an ICC profile
+    ///
+    /// The maximum allowed data length is 16,707,345 bytes.
+    pub fn add_icc_profile(&mut self, data: &[u8]) -> IOResult<()> {
+
+        // Based on https://www.color.org/ICC_Minor_Revision_for_Web.pdf
+        // B.4  Embedding ICC profiles in JFIF files
+
+        const MARKER: &[u8; 12] = b"ICC_PROFILE\0";
+        const MAX_CHUNK_LENGTH: usize = 65535 - 2 - 12 - 2;
+
+        let num_chunks = ceil_div(data.len() as u32, MAX_CHUNK_LENGTH as u32);
+
+        // Sequence number is stored as a byte and starts with 1
+        if num_chunks >= 255 {
+            return Err(IOError::new(ErrorKind::Other, format!("ICC profile exceeds maximum allow data length: {}", data.len())));
+        }
+
+        let mut chunk_data = Vec::with_capacity(MAX_CHUNK_LENGTH);
+
+        for (i, data) in data.chunks(MAX_CHUNK_LENGTH).enumerate() {
+            chunk_data.clear();
+            chunk_data.extend_from_slice(MARKER);
+            chunk_data.push(i as u8 + 1);
+            chunk_data.push(num_chunks as u8);
+            chunk_data.extend_from_slice(data);
+
+            self.add_app_segment(2, &chunk_data)?;
+        }
+
+        Ok(())
     }
 
     pub fn encode(
@@ -289,6 +340,10 @@ impl<W: Write> JpegEncoder<W> {
             //Set ColorTransform info to YCCK
             let app_14 = b"Adobe\0\0\0\0\0\0\x02";
             self.writer.write_segment(Marker::APP(14), app_14.as_ref())?;
+        }
+
+        for (nr, data) in &self.app_segments {
+            self.writer.write_segment(Marker::APP(*nr), data)?;
         }
 
         if self.progressive_scans != 0 {

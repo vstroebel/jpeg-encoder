@@ -245,4 +245,57 @@ mod tests {
 
         check_result(data, width, height, &mut result, PixelFormat::CMYK32);
     }
+
+    #[test]
+    fn test_app_segment() {
+        let (data, width, height) = create_test_img_rgb();
+
+        let mut result = Vec::new();
+        let mut encoder = JpegEncoder::new(&mut result, 100);
+
+        encoder.add_app_segment(15, b"HOHOHO\0").unwrap();
+
+        encoder.encode(&data, width, height, ColorType::Rgb).unwrap();
+
+        let segment_data = b"\xEF\0\x09HOHOHO\0";
+
+        assert!(result.as_slice()
+            .windows(segment_data.len())
+            .any(|w| w == segment_data));
+    }
+
+    #[test]
+    fn test_icc_profile() {
+        let (data, width, height) = create_test_img_rgb();
+
+        let mut result = Vec::new();
+        let mut encoder = JpegEncoder::new(&mut result, 100);
+
+        let mut icc = Vec::with_capacity(128 * 1024);
+
+        for i in 0..128 * 1024 {
+            icc.push((i % 255) as u8);
+        }
+
+        encoder.add_icc_profile(&icc).unwrap();
+
+        encoder.encode(&data, width, height, ColorType::Rgb).unwrap();
+
+        const MARKER: &[u8; 12] = b"ICC_PROFILE\0";
+
+        assert!(result.as_slice()
+            .windows(MARKER.len())
+            .any(|w| w == MARKER));
+
+        let mut decoder = Decoder::new(result.as_slice());
+
+        decoder.decode().unwrap();
+
+        let icc_out = match decoder.icc_profile() {
+            Some(icc) => icc,
+            None => panic!("Missing icc profile"),
+        };
+
+        assert_eq!(icc, icc_out);
+    }
 }
