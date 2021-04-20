@@ -1,5 +1,24 @@
 # JPEG encoder
 
+## Example
+```rust
+use jpeg_encoder::{Encoder, ColorType};
+
+// An array with 4 pixels in RGB format.
+let data = [
+    255, 0, 0,
+    0, 255, 0,
+    0, 0, 255,
+    255, 255, 255,
+];
+
+// Create new encoder that writes to a file with maximum quality (100)
+let mut encoder = Encoder::new_file("some.jpeg", 100)?;
+
+// Encode the data with dimension 2x2
+encoder.encode(&data, 2, 2, ColorType::Rgb)?;
+```
+
 ## License
 
 This project is licensed under either of

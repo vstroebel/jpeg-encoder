@@ -10,11 +10,19 @@ use std::io::{Write, Result as IOResult, Error as IOError, ErrorKind, BufWriter}
 use std::fs::File;
 use std::path::Path;
 
+/// Color types used in encoding
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum JpegColorType {
+    /// One component grayscale colorspace
     Luma,
+
+    /// Three component YCbCr colorspace
     Ycbcr,
+
+    /// 4 Component CMYK colorspace
     Cmyk,
+
+    /// 4 Component YCbCrK colorspace
     Ycck,
 }
 
@@ -30,16 +38,34 @@ impl JpegColorType {
     }
 }
 
+/// Color types for input images
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum ColorType {
+    /// Grayscale with 1 byte per pixel
     Luma,
+
+    /// RGB with 3 bytes per pixel
     Rgb,
+
+    /// Red, Gree, Blue with 4 bytes per pixel. The alpha channel will be ignored during encoding.
     Rgba,
+
+    /// RGB with 3 bytes per pixel
     Bgr,
+
+    /// RGBA with 4 bytes per pixel. The alpha channel will be ignored during encoding.
     Bgra,
+
+    /// YCbCr with 3 bytes per pixel.
     Ycbcr,
+
+    /// CMYK with 4 bytes per pixel.
     Cmyk,
+
+    /// CMYK with 4 bytes per pixel. Encoded as YCCK (YCbCrK)
     CmykAsYcck,
+
+    /// YCCK (YCbCrK) with 4 bytes per pixel.
     Ycck,
 }
 
@@ -77,6 +103,7 @@ macro_rules! add_component {
     }
 }
 
+/// The JPEG encoder
 pub struct Encoder<W: Write> {
     writer: JfifWriter<W>,
     density: Density,
@@ -96,6 +123,12 @@ pub struct Encoder<W: Write> {
 }
 
 impl<W: Write> Encoder<W> {
+
+    /// Create a new encoder with the given quality
+    ///
+    /// The quality must be between 1 and 100 where 100 is the highest image quality.<br>
+    /// By default, quality settings below 90 use a chroma subsampling (4:2:2) which can
+    /// be changed with [set_sampling_factor](Encoder::set_sampling_factor)
     pub fn new(w: W, quality: u8) -> Encoder<W> {
         let huffman_tables = [
             (HuffmanTable::default_luma_dc(), HuffmanTable::default_luma_ac()),
@@ -160,7 +193,7 @@ impl<W: Write> Encoder<W> {
     /// Controls if progressive encoding is used.
     ///
     /// By default, progressive encoding uses 4 scans.<br>
-    /// Use [set_progressive_scans](JpegEncoder::set_progressive_scans) to use a different number of scans
+    /// Use [set_progressive_scans](Encoder::set_progressive_scans) to use a different number of scans
     ///
     /// # Example
     /// ```no_run
@@ -203,8 +236,16 @@ impl<W: Write> Encoder<W> {
         }
     }
 
+    /// Set if optimized huffman table should be created
+    ///
+    /// Optimized tables result in slightly smaller file sizes but decrease encoding performance.
     pub fn set_optimized_huffman_tables(&mut self, optimize_huffman_table: bool) {
         self.optimize_huffman_table = optimize_huffman_table;
+    }
+
+    /// Returns if optimized huffman table should be generated
+    pub fn optimized_huffman_tables(&self) -> bool {
+        self.optimize_huffman_table
     }
 
     /// Appends a custom app segment to the JFIF file
@@ -793,6 +834,10 @@ impl<W: Write> Encoder<W> {
 }
 
 impl Encoder<BufWriter<File>> {
+
+    /// Create a new decoder that writes into a file
+    ///
+    /// See [new](Encoder::new) for further information.
     pub fn new_file<P: AsRef<Path>>(path: P, quality: u8) -> IOResult<Encoder<BufWriter<File>>> {
         let file = File::create(path)?;
         let buf = BufWriter::new(file);
