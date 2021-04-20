@@ -66,7 +66,7 @@ impl<W: Write> JfifWriter<W> {
         self.write_bits(0x7F, 7)?;
         self.flush_bit_buffer()?;
         self.bit_buffer = 0;
-        self.free_bits = 64;
+        self.free_bits = BUFFER_SIZE as i8;
 
         Ok(())
     }
@@ -88,6 +88,7 @@ impl<W: Write> JfifWriter<W> {
     }
 
     #[inline(always)]
+    #[allow(overflowing_literals)]
     fn write_bit_buffer(&mut self) -> IOResult<()> {
         if (self.bit_buffer & 0x8080808080808080 & !(self.bit_buffer.wrapping_add(0x0101010101010101))) != 0 {
             self.flush_bit_buffer()
