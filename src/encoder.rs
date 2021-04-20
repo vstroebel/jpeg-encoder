@@ -364,6 +364,10 @@ impl<W: Write> Encoder<W> {
         Ok(())
     }
 
+    /// Encode an image
+    ///
+    /// Data format and length must conform to specified width, height and color type.
+    /// This will consume the encoder because it will get unusable after an image has been written.
     pub fn encode(
         self,
         data: &[u8],
@@ -432,6 +436,9 @@ impl<W: Write> Encoder<W> {
         (usize::from(max_h_sampling), usize::from(max_v_sampling))
     }
 
+    /// Encode an image
+    ///
+    /// This will consume the encoder because it will get unusable after an image has been written.
     pub fn encode_image<I: ImageBuffer>(
         mut self,
         image: I,
