@@ -37,30 +37,30 @@ pub fn cmyk_to_ycck(c: u8, m: u8, y: u8, k: u8) -> (u8, u8, u8, u8) {
 pub trait ImageBuffer {
     fn get_jpeg_color_type(&self) -> JpegColorType;
 
-    fn width(&self) -> u32;
+    fn width(&self) -> u16;
 
-    fn height(&self) -> u32;
+    fn height(&self) -> u16;
 
-    fn fill_buffers(&self, x: u32, y: u32, buffers: &mut [Vec<u8>; 4]);
+    fn fill_buffers(&self, x: u16, y: u16, buffers: &mut [Vec<u8>; 4]);
 }
 
-pub(crate) struct GrayImage<'a>(pub &'a [u8], pub u32, pub u32);
+pub(crate) struct GrayImage<'a>(pub &'a [u8], pub u16, pub u16);
 
 impl<'a> ImageBuffer for GrayImage<'a> {
     fn get_jpeg_color_type(&self) -> JpegColorType {
         JpegColorType::Luma
     }
 
-    fn width(&self) -> u32 {
+    fn width(&self) -> u16 {
         self.1
     }
 
-    fn height(&self) -> u32 {
+    fn height(&self) -> u16 {
         self.2
     }
 
-    fn fill_buffers(&self, x: u32, y: u32, buffers: &mut [Vec<u8>; 4]) {
-        let offset = (y * self.1 + x) as usize;
+    fn fill_buffers(&self, x: u16, y: u16, buffers: &mut [Vec<u8>; 4]) {
+        let offset = usize::from(y) * usize::from(self.1) + usize::from(x);
 
         buffers[0].push(self.0[offset + 0]);
     }
@@ -68,24 +68,24 @@ impl<'a> ImageBuffer for GrayImage<'a> {
 
 macro_rules! ycbcr_image {
     ($name:ident, $num_colors:expr, $o1:expr, $o2:expr, $o3:expr) => {
-        pub(crate) struct $name<'a>(pub &'a [u8], pub u32, pub u32);
+        pub(crate) struct $name<'a>(pub &'a [u8], pub u16, pub u16);
 
         impl<'a> ImageBuffer for $name<'a> {
             fn get_jpeg_color_type(&self) -> JpegColorType {
                 JpegColorType::Ycbcr
             }
 
-            fn width(&self) -> u32 {
+            fn width(&self) -> u16 {
                 self.1
             }
 
-            fn height(&self) -> u32 {
+            fn height(&self) -> u16 {
                 self.2
             }
 
             #[inline(always)]
-            fn fill_buffers(&self, x: u32, y: u32, buffers: &mut [Vec<u8>; 4]) {
-                let offset = (y * self.1 + x) as usize * $num_colors;
+            fn fill_buffers(&self, x: u16, y: u16, buffers: &mut [Vec<u8>; 4]) {
+                let offset = (usize::from(y) * usize::from(self.1) + usize::from(x)) * $num_colors;
                 let (y, cb, cr) = rgb_to_ycbcr(self.0[offset + $o1], self.0[offset + $o2], self.0[offset + $o3]);
 
                 buffers[0].push(y);
@@ -101,23 +101,23 @@ ycbcr_image!(RgbaImage, 4, 0, 1, 2);
 ycbcr_image!(BgrImage, 3, 2, 1, 0);
 ycbcr_image!(BgraImage, 4, 2, 1, 0);
 
-pub(crate) struct YCbCrImage<'a>(pub &'a [u8], pub u32, pub u32);
+pub(crate) struct YCbCrImage<'a>(pub &'a [u8], pub u16, pub u16);
 
 impl<'a> ImageBuffer for YCbCrImage<'a> {
     fn get_jpeg_color_type(&self) -> JpegColorType {
         JpegColorType::Ycbcr
     }
 
-    fn width(&self) -> u32 {
+    fn width(&self) -> u16 {
         self.1
     }
 
-    fn height(&self) -> u32 {
+    fn height(&self) -> u16 {
         self.2
     }
 
-    fn fill_buffers(&self, x: u32, y: u32, buffers: &mut [Vec<u8>; 4]) {
-        let offset = (y * self.1 + x) as usize * 3;
+    fn fill_buffers(&self, x: u16, y: u16, buffers: &mut [Vec<u8>; 4]) {
+        let offset = (usize::from(y) * usize::from(self.1) + usize::from(x)) * 3;
 
         buffers[0].push(self.0[offset + 0]);
         buffers[1].push(self.0[offset + 1]);
@@ -125,23 +125,23 @@ impl<'a> ImageBuffer for YCbCrImage<'a> {
     }
 }
 
-pub(crate) struct CmykImage<'a>(pub &'a [u8], pub u32, pub u32);
+pub(crate) struct CmykImage<'a>(pub &'a [u8], pub u16, pub u16);
 
 impl<'a> ImageBuffer for CmykImage<'a> {
     fn get_jpeg_color_type(&self) -> JpegColorType {
         JpegColorType::Cmyk
     }
 
-    fn width(&self) -> u32 {
+    fn width(&self) -> u16 {
         self.1
     }
 
-    fn height(&self) -> u32 {
+    fn height(&self) -> u16 {
         self.2
     }
 
-    fn fill_buffers(&self, x: u32, y: u32, buffers: &mut [Vec<u8>; 4]) {
-        let offset = (y * self.1 + x) as usize * 4;
+    fn fill_buffers(&self, x: u16, y: u16, buffers: &mut [Vec<u8>; 4]) {
+        let offset = (usize::from(y) * usize::from(self.1) + usize::from(x)) * 4;
 
         buffers[0].push(255 - self.0[offset + 0]);
         buffers[1].push(255 - self.0[offset + 1]);
@@ -150,23 +150,24 @@ impl<'a> ImageBuffer for CmykImage<'a> {
     }
 }
 
-pub(crate) struct CmykAsYcckImage<'a>(pub &'a [u8], pub u32, pub u32);
+pub(crate) struct CmykAsYcckImage<'a>(pub &'a [u8], pub u16, pub u16);
 
 impl<'a> ImageBuffer for CmykAsYcckImage<'a> {
     fn get_jpeg_color_type(&self) -> JpegColorType {
         JpegColorType::Ycck
     }
 
-    fn width(&self) -> u32 {
+    fn width(&self) -> u16 {
         self.1
     }
 
-    fn height(&self) -> u32 {
+    fn height(&self) -> u16 {
         self.2
     }
 
-    fn fill_buffers(&self, x: u32, y: u32, buffers: &mut [Vec<u8>; 4]) {
-        let offset = (y * self.1 + x) as usize * 4;
+    fn fill_buffers(&self, x: u16, y: u16, buffers: &mut [Vec<u8>; 4]) {
+        let offset = (usize::from(y) * usize::from(self.1) + usize::from(x)) * 4;
+
         let (y, cb, cr, k) = cmyk_to_ycck(
             self.0[offset + 0],
             self.0[offset + 1],
@@ -180,23 +181,23 @@ impl<'a> ImageBuffer for CmykAsYcckImage<'a> {
     }
 }
 
-pub(crate) struct YcckImage<'a>(pub &'a [u8], pub u32, pub u32);
+pub(crate) struct YcckImage<'a>(pub &'a [u8], pub u16, pub u16);
 
 impl<'a> ImageBuffer for YcckImage<'a> {
     fn get_jpeg_color_type(&self) -> JpegColorType {
         JpegColorType::Ycck
     }
 
-    fn width(&self) -> u32 {
+    fn width(&self) -> u16 {
         self.1
     }
 
-    fn height(&self) -> u32 {
+    fn height(&self) -> u16 {
         self.2
     }
 
-    fn fill_buffers(&self, x: u32, y: u32, buffers: &mut [Vec<u8>; 4]) {
-        let offset = (y * self.1 + x) as usize * 4;
+    fn fill_buffers(&self, x: u16, y: u16, buffers: &mut [Vec<u8>; 4]) {
+        let offset = (usize::from(y) * usize::from(self.1) + usize::from(x)) * 4;
 
         buffers[0].push(self.0[offset + 0]);
         buffers[1].push(self.0[offset + 1]);

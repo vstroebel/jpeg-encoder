@@ -233,7 +233,7 @@ impl<W: Write> Encoder<W> {
         const MARKER: &[u8; 12] = b"ICC_PROFILE\0";
         const MAX_CHUNK_LENGTH: usize = 65535 - 2 - 12 - 2;
 
-        let num_chunks = ceil_div(data.len() as u32, MAX_CHUNK_LENGTH as u32);
+        let num_chunks = ceil_div(data.len(), MAX_CHUNK_LENGTH);
 
         // Sequence number is stored as a byte and starts with 1
         if num_chunks >= 255 {
@@ -270,15 +270,15 @@ impl<W: Write> Encoder<W> {
         }
 
         match color_type {
-            ColorType::Luma => self.encode_image(GrayImage(data, width as u32, height as u32))?,
-            ColorType::Rgb => self.encode_image(RgbImage(data, width as u32, height as u32))?,
-            ColorType::Rgba => self.encode_image(RgbaImage(data, width as u32, height as u32))?,
-            ColorType::Bgr => self.encode_image(BgrImage(data, width as u32, height as u32))?,
-            ColorType::Bgra => self.encode_image(BgraImage(data, width as u32, height as u32))?,
-            ColorType::Ycbcr => self.encode_image(YCbCrImage(data, width as u32, height as u32))?,
-            ColorType::Cmyk => self.encode_image(CmykImage(data, width as u32, height as u32))?,
-            ColorType::CmykAsYcck => self.encode_image(CmykAsYcckImage(data, width as u32, height as u32))?,
-            ColorType::Ycck => self.encode_image(YcckImage(data, width as u32, height as u32))?,
+            ColorType::Luma => self.encode_image(GrayImage(data, width, height))?,
+            ColorType::Rgb => self.encode_image(RgbImage(data, width, height))?,
+            ColorType::Rgba => self.encode_image(RgbaImage(data, width, height))?,
+            ColorType::Bgr => self.encode_image(BgrImage(data, width, height))?,
+            ColorType::Bgra => self.encode_image(BgraImage(data, width, height))?,
+            ColorType::Ycbcr => self.encode_image(YCbCrImage(data, width, height))?,
+            ColorType::Cmyk => self.encode_image(CmykImage(data, width, height))?,
+            ColorType::CmykAsYcck => self.encode_image(CmykAsYcckImage(data, width, height))?,
+            ColorType::Ycck => self.encode_image(YcckImage(data, width, height))?,
         }
 
         Ok(())
@@ -309,16 +309,16 @@ impl<W: Write> Encoder<W> {
         }
     }
 
-    fn get_max_sampling_size(&self) -> (u32, u32) {
+    fn get_max_sampling_size(&self) -> (usize, usize) {
         let max_h_sampling = self.components
             .iter()
-            .fold(1, |value, component| value.max(component.horizontal_sampling_factor)) as u32;
+            .fold(1, |value, component| value.max(component.horizontal_sampling_factor));
 
         let max_v_sampling = self.components
             .iter()
-            .fold(1, |value, component| value.max(component.vertical_sampling_factor)) as u32;
+            .fold(1, |value, component| value.max(component.vertical_sampling_factor));
 
-        (max_h_sampling, max_v_sampling)
+        (usize::from(max_h_sampling), usize::from(max_v_sampling))
     }
 
     pub fn encode_image<I: ImageBuffer>(
@@ -412,8 +412,8 @@ impl<W: Write> Encoder<W> {
         let width = image.width();
         let height = image.height();
 
-        let num_cols = ceil_div(width, 8 * max_h_sampling);
-        let num_rows = ceil_div(height, 8 * max_v_sampling);
+        let num_cols = ceil_div(usize::from(width), 8 * max_h_sampling);
+        let num_rows = ceil_div(usize::from(height), 8 * max_v_sampling);
 
         let buffer_width = (num_cols * 8 * max_h_sampling) as usize;
         let buffer_size = buffer_width * 8 * max_v_sampling as usize;
@@ -429,12 +429,12 @@ impl<W: Write> Encoder<W> {
 
             for y in 0..(8 * max_v_sampling) {
                 let y = y + block_y * 8 * max_v_sampling;
-                let y = y.min(height - 1);
+                let y = (y.min(height as usize - 1)) as u16;
 
-                for x in 0..image.width() as u32 {
+                for x in 0..image.width() {
                     image.fill_buffers(x, y, &mut row);
                 }
-                for _ in width..buffer_width as u32 {
+                for _ in usize::from(width)..buffer_width {
                     image.fill_buffers(width - 1, y, &mut row);
                 }
             }
@@ -611,8 +611,8 @@ impl<W: Write> Encoder<W> {
         let width = image.width();
         let height = image.height();
 
-        let num_cols = ceil_div(width, 8);
-        let num_rows = ceil_div(height, 8);
+        let num_cols = ceil_div(usize::from(width), 8);
+        let num_rows = ceil_div(usize::from(height), 8);
 
         let buffer_width = (num_cols * 8) as usize;
         let buffer_size = (num_cols * num_rows * 64) as usize;
@@ -620,12 +620,12 @@ impl<W: Write> Encoder<W> {
         let mut row: [Vec<_>; 4] = self.init_rows(buffer_size);
 
         for y in 0..num_rows * 8 {
-            let y = y.min(height - 1);
+            let y = (y.min(usize::from(height) - 1)) as u16;
 
             for x in 0..width {
                 image.fill_buffers(x, y, &mut row);
             }
-            for _ in width..num_cols * 8 {
+            for _ in usize::from(width)..num_cols * 8 {
                 image.fill_buffers(width - 1, y, &mut row);
             }
         }
@@ -820,8 +820,8 @@ fn get_block(data: &[u8],
     block
 }
 
-fn ceil_div(value: u32, div: u32) -> u32 {
-    value / div + u32::from(value % div != 0)
+fn ceil_div(value: usize, div: usize) -> usize {
+    value / div + usize::from(value % div != 0)
 }
 
 fn get_num_bits(mut value: i16) -> u8 {
