@@ -325,6 +325,11 @@ impl<W: Write> Encoder<W> {
         mut self,
         image: I,
     ) -> IOResult<()> {
+        if image.width() == 0 || image.height() == 0 {
+            return Err(IOError::new(ErrorKind::Other,
+                                    format!("Image dimensions must be non zero: {}x{}", image.width(), image.height())));
+        }
+
         let jpeg_color_type = image.get_jpeg_color_type();
         self.init_components(jpeg_color_type);
 
