@@ -81,6 +81,70 @@ impl ColorType {
     }
 }
 
+#[repr(u8)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+/// Sampling factors for chroma subsampling
+///
+/// # Warning
+/// Factors with horizontal oder vertical sampling factor of 4 are
+/// not be supported by all encoders or applications
+pub enum SamplingFactor {
+    /// No subsampling (1x1)
+    R4_4_4 = 1 << 4 | 1,
+
+    /// Subsampling of 1x2
+    R4_4_0 = 1 << 4 | 2,
+
+    /// Subsampling of 1x4
+    R4_4_1 = 1 << 4 | 4,
+
+    /// Subsampling of 2x1
+    R4_2_2 = 2 << 4 | 1,
+
+    /// Subsampling of 2x2
+    R4_2_0 = 2 << 4 | 2,
+
+    /// Subsampling of 2x4
+    R4_2_1 = 2 << 4 | 4,
+
+    /// Subsampling of 4x1
+    R4_1_1 = 4 << 4 | 1,
+
+    /// Subsampling of 4x2
+    R4_1_0 = 4 << 4 | 2,
+}
+
+impl SamplingFactor {
+    /// Get variant for supplied factors or None if not supported
+    pub fn from_factors(horizontal: u8, vertical: u8) -> Option<SamplingFactor> {
+        use SamplingFactor::*;
+
+        match (horizontal, vertical) {
+            (1, 1) => Some(R4_4_4),
+            (1, 2) => Some(R4_4_0),
+            (1, 4) => Some(R4_4_1),
+            (2, 1) => Some(R4_2_2),
+            (2, 2) => Some(R4_2_0),
+            (2, 4) => Some(R4_2_1),
+            (4, 1) => Some(R4_1_1),
+            (4, 2) => Some(R4_1_0),
+            _ => None,
+        }
+    }
+
+    pub(crate) fn get_sampling_factors(&self) -> (u8, u8) {
+        let value = *self as u8;
+        (value >> 4, value & 0xf)
+    }
+
+    pub(crate) fn supports_interleaved(&self) -> bool {
+        use SamplingFactor::*;
+
+        // Interleaved mode is only supported with h/v sampling factors of 1 or 2
+        matches!(self, R4_4_4 | R4_4_0 | R4_2_2 | R4_2_0)
+    }
+}
+
 pub(crate) struct Component {
     pub id: u8,
     pub quantization_table: u8,
@@ -112,8 +176,7 @@ pub struct Encoder<W: Write> {
     quantization_tables: [QuantizationTable; 2],
     huffman_tables: [(HuffmanTable, HuffmanTable); 2],
 
-    horizontal_sampling_factor: u8,
-    vertical_sampling_factor: u8,
+    sampling_factor: SamplingFactor,
 
     progressive_scans: u8,
 
@@ -123,11 +186,10 @@ pub struct Encoder<W: Write> {
 }
 
 impl<W: Write> Encoder<W> {
-
     /// Create a new encoder with the given quality
     ///
     /// The quality must be between 1 and 100 where 100 is the highest image quality.<br>
-    /// By default, quality settings below 90 use a chroma subsampling (4:2:2) which can
+    /// By default, quality settings below 90 use a chroma subsampling (4:2:0) which can
     /// be changed with [set_sampling_factor](Encoder::set_sampling_factor)
     pub fn new(w: W, quality: u8) -> Encoder<W> {
         let huffman_tables = [
@@ -140,10 +202,10 @@ impl<W: Write> Encoder<W> {
             QuantizationTable::default_chroma(quality)
         ];
 
-        let luma_sampling = if quality < 90 {
-            2
+        let sampling_factor = if quality < 90 {
+            SamplingFactor::R4_2_0
         } else {
-            1
+            SamplingFactor::R4_4_4
         };
 
         Encoder {
@@ -152,8 +214,7 @@ impl<W: Write> Encoder<W> {
             components: vec![],
             quantization_tables,
             huffman_tables,
-            horizontal_sampling_factor: luma_sampling,
-            vertical_sampling_factor: luma_sampling,
+            sampling_factor,
             progressive_scans: 0,
             optimize_huffman_table: false,
             app_segments: Vec::new(),
@@ -185,9 +246,14 @@ impl<W: Write> Encoder<W> {
         self.density
     }
 
-    pub fn set_sampling_factor(&mut self, horizontal_factor: u8, vertical_factor: u8) {
-        self.horizontal_sampling_factor = horizontal_factor;
-        self.vertical_sampling_factor = vertical_factor;
+    /// Set chroma subsampling factor
+    pub fn set_sampling_factor(&mut self, sampling: SamplingFactor) {
+        self.sampling_factor = sampling;
+    }
+
+    /// Get chroma subsampling factor
+    pub fn sampling_factor(&self) -> SamplingFactor {
+        self.sampling_factor
     }
 
     /// Controls if progressive encoding is used.
@@ -326,12 +392,14 @@ impl<W: Write> Encoder<W> {
     }
 
     fn init_components(&mut self, color: JpegColorType) {
+        let (horizontal_sampling_factor, vertical_sampling_factor) = self.sampling_factor.get_sampling_factors();
+
         match color {
             JpegColorType::Luma => {
                 add_component!(self.components, 0, 0, 1, 1);
             }
             JpegColorType::Ycbcr => {
-                add_component!(self.components, 0, 0, self.horizontal_sampling_factor, self.vertical_sampling_factor);
+                add_component!(self.components, 0, 0, horizontal_sampling_factor, vertical_sampling_factor);
                 add_component!(self.components, 1, 1, 1, 1);
                 add_component!(self.components, 2, 1, 1, 1);
             }
@@ -339,13 +407,13 @@ impl<W: Write> Encoder<W> {
                 add_component!(self.components, 0, 1, 1, 1);
                 add_component!(self.components, 1, 1, 1, 1);
                 add_component!(self.components, 2, 1, 1, 1);
-                add_component!(self.components, 3, 0, self.horizontal_sampling_factor, self.vertical_sampling_factor);
+                add_component!(self.components, 3, 0, horizontal_sampling_factor, vertical_sampling_factor);
             }
             JpegColorType::Ycck => {
-                add_component!(self.components, 0, 0, self.horizontal_sampling_factor, self.vertical_sampling_factor);
+                add_component!(self.components, 0, 0, horizontal_sampling_factor, vertical_sampling_factor);
                 add_component!(self.components, 1, 1, 1, 1);
                 add_component!(self.components, 2, 1, 1, 1);
-                add_component!(self.components, 3, 0, self.horizontal_sampling_factor, self.vertical_sampling_factor);
+                add_component!(self.components, 3, 0, horizontal_sampling_factor, vertical_sampling_factor);
             }
         }
     }
@@ -394,8 +462,7 @@ impl<W: Write> Encoder<W> {
 
         if self.progressive_scans != 0 {
             self.encode_image_progressive(image)?;
-        } else if self.optimize_huffman_table || self.horizontal_sampling_factor > 2 || self.vertical_sampling_factor > 2 {
-            // Interleaved mode is only supported with h/v sampling factors of 1 or 2
+        } else if self.optimize_huffman_table || !self.sampling_factor.supports_interleaved() {
             self.encode_image_sequential(image)?;
         } else {
             self.encode_image_interleaved(image)?;
@@ -834,7 +901,6 @@ impl<W: Write> Encoder<W> {
 }
 
 impl Encoder<BufWriter<File>> {
-
     /// Create a new decoder that writes into a file
     ///
     /// See [new](Encoder::new) for further information.
