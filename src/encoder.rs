@@ -290,7 +290,7 @@ impl<W: Write> Encoder<W> {
     /// # Panics
     /// If number of scans is not within valid range
     pub fn set_progressive_scans(&mut self, scans: u8) {
-        assert!(scans >= 2 && scans <= 64, "Invalid number of scans: {}", scans);
+        assert!((2..=64).contains(&scans), "Invalid number of scans: {}", scans);
         self.progressive_scans = scans;
     }
 
