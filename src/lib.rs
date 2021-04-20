@@ -7,13 +7,13 @@ mod image_buffer;
 mod encoder;
 
 pub use writer::Density;
-pub use encoder::{ColorType, JpegColorType, JpegEncoder};
+pub use encoder::{ColorType, JpegColorType, Encoder};
 pub use image_buffer::ImageBuffer;
 
 
 #[cfg(test)]
 mod tests {
-    use crate::{JpegEncoder, ColorType};
+    use crate::{Encoder, ColorType};
     use jpeg_decoder::{Decoder, PixelFormat, ImageInfo};
     use crate::image_buffer::rgb_to_ycbcr;
 
@@ -93,7 +93,7 @@ mod tests {
         let (data, width, height) = create_test_img_gray();
 
         let mut result = Vec::new();
-        let encoder = JpegEncoder::new(&mut result, 100);
+        let encoder = Encoder::new(&mut result, 100);
         encoder.encode(&data, width, height, ColorType::Luma).unwrap();
 
         check_result(data, width, height, &mut result, PixelFormat::L8);
@@ -104,7 +104,7 @@ mod tests {
         let (data, width, height) = create_test_img_rgb();
 
         let mut result = Vec::new();
-        let encoder = JpegEncoder::new(&mut result, 100);
+        let encoder = Encoder::new(&mut result, 100);
         encoder.encode(&data, width, height, ColorType::Rgb).unwrap();
 
         check_result(data, width, height, &mut result, PixelFormat::RGB24);
@@ -115,7 +115,7 @@ mod tests {
         let (data, width, height) = create_test_img_rgb();
 
         let mut result = Vec::new();
-        let encoder = JpegEncoder::new(&mut result, 80);
+        let encoder = Encoder::new(&mut result, 80);
         encoder.encode(&data, width, height, ColorType::Rgb).unwrap();
 
         check_result(data, width, height, &mut result, PixelFormat::RGB24);
@@ -126,7 +126,7 @@ mod tests {
         let (data, width, height) = create_test_img_rgb();
 
         let mut result = Vec::new();
-        let mut encoder = JpegEncoder::new(&mut result, 100);
+        let mut encoder = Encoder::new(&mut result, 100);
         encoder.set_sampling_factor(2, 1);
         encoder.encode(&data, width, height, ColorType::Rgb).unwrap();
 
@@ -138,7 +138,7 @@ mod tests {
         let (data, width, height) = create_test_img_rgb();
 
         let mut result = Vec::new();
-        let mut encoder = JpegEncoder::new(&mut result, 100);
+        let mut encoder = Encoder::new(&mut result, 100);
         encoder.set_sampling_factor(1, 2);
         encoder.encode(&data, width, height, ColorType::Rgb).unwrap();
 
@@ -150,7 +150,7 @@ mod tests {
         let (data, width, height) = create_test_img_rgb();
 
         let mut result = Vec::new();
-        let mut encoder = JpegEncoder::new(&mut result, 100);
+        let mut encoder = Encoder::new(&mut result, 100);
         encoder.set_sampling_factor(2, 2);
         encoder.encode(&data, width, height, ColorType::Rgb).unwrap();
 
@@ -162,7 +162,7 @@ mod tests {
         let (data, width, height) = create_test_img_rgb();
 
         let mut result = Vec::new();
-        let mut encoder = JpegEncoder::new(&mut result, 100);
+        let mut encoder = Encoder::new(&mut result, 100);
         encoder.set_sampling_factor(4, 1);
         encoder.encode(&data, width, height, ColorType::Rgb).unwrap();
 
@@ -174,7 +174,7 @@ mod tests {
         let (data, width, height) = create_test_img_rgb();
 
         let mut result = Vec::new();
-        let mut encoder = JpegEncoder::new(&mut result, 100);
+        let mut encoder = Encoder::new(&mut result, 100);
         encoder.set_sampling_factor(4, 1);
         encoder.encode(&data, width, height, ColorType::Rgb).unwrap();
 
@@ -186,7 +186,7 @@ mod tests {
         let (data, width, height) = create_test_img_rgb();
 
         let mut result = Vec::new();
-        let mut encoder = JpegEncoder::new(&mut result, 100);
+        let mut encoder = Encoder::new(&mut result, 100);
         encoder.set_sampling_factor(2, 1);
         encoder.set_progressive(true);
 
@@ -200,7 +200,7 @@ mod tests {
         let (data, width, height) = create_test_img_rgb();
 
         let mut result = Vec::new();
-        let mut encoder = JpegEncoder::new(&mut result, 100);
+        let mut encoder = Encoder::new(&mut result, 100);
         encoder.set_sampling_factor(2, 1);
         encoder.set_optimized_huffman_tables(true);
 
@@ -214,7 +214,7 @@ mod tests {
         let (data, width, height) = create_test_img_rgb();
 
         let mut result = Vec::new();
-        let mut encoder = JpegEncoder::new(&mut result, 100);
+        let mut encoder = Encoder::new(&mut result, 100);
         encoder.set_sampling_factor(2, 1);
         encoder.set_progressive(true);
         encoder.set_optimized_huffman_tables(true);
@@ -229,7 +229,7 @@ mod tests {
         let (data, width, height) = create_test_img_cmyk();
 
         let mut result = Vec::new();
-        let encoder = JpegEncoder::new(&mut result, 100);
+        let encoder = Encoder::new(&mut result, 100);
         encoder.encode(&data, width, height, ColorType::Cmyk).unwrap();
 
         check_result(data, width, height, &mut result, PixelFormat::CMYK32);
@@ -240,7 +240,7 @@ mod tests {
         let (data, width, height) = create_test_img_cmyk();
 
         let mut result = Vec::new();
-        let encoder = JpegEncoder::new(&mut result, 100);
+        let encoder = Encoder::new(&mut result, 100);
         encoder.encode(&data, width, height, ColorType::CmykAsYcck).unwrap();
 
         check_result(data, width, height, &mut result, PixelFormat::CMYK32);
@@ -251,7 +251,7 @@ mod tests {
         let (data, width, height) = create_test_img_rgb();
 
         let mut result = Vec::new();
-        let mut encoder = JpegEncoder::new(&mut result, 100);
+        let mut encoder = Encoder::new(&mut result, 100);
 
         encoder.add_app_segment(15, b"HOHOHO\0").unwrap();
 
@@ -269,7 +269,7 @@ mod tests {
         let (data, width, height) = create_test_img_rgb();
 
         let mut result = Vec::new();
-        let mut encoder = JpegEncoder::new(&mut result, 100);
+        let mut encoder = Encoder::new(&mut result, 100);
 
         let mut icc = Vec::with_capacity(128 * 1024);
 

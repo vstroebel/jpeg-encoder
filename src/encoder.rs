@@ -77,7 +77,7 @@ macro_rules! add_component {
     }
 }
 
-pub struct JpegEncoder<W: Write> {
+pub struct Encoder<W: Write> {
     writer: JfifWriter<W>,
     density: Density,
 
@@ -95,8 +95,8 @@ pub struct JpegEncoder<W: Write> {
     app_segments: Vec<(u8, Vec<u8>)>,
 }
 
-impl<W: Write> JpegEncoder<W> {
-    pub fn new(w: W, quality: u8) -> JpegEncoder<W> {
+impl<W: Write> Encoder<W> {
+    pub fn new(w: W, quality: u8) -> Encoder<W> {
         let huffman_tables = [
             (HuffmanTable::default_luma_dc(), HuffmanTable::default_luma_ac()),
             (HuffmanTable::default_chroma_dc(), HuffmanTable::default_chroma_ac())
@@ -113,7 +113,7 @@ impl<W: Write> JpegEncoder<W> {
             1
         };
 
-        JpegEncoder {
+        Encoder {
             writer: JfifWriter::new(w),
             density: Density::None,
             components: vec![],
@@ -133,9 +133,9 @@ impl<W: Write> JpegEncoder<W> {
     /// # Example
     /// ```no_run
     /// # fn main() -> std::io::Result<()> {
-    /// use jpeg_encoder::{JpegEncoder, Density};
+    /// use jpeg_encoder::{Encoder, Density};
     ///
-    /// let mut encoder = JpegEncoder::new_file("some.jpeg", 100)?;
+    /// let mut encoder = Encoder::new_file("some.jpeg", 100)?;
     ///
     /// // Set horizontal and vertical density to 72 dpi (dots per inch)
     /// encoder.set_density(Density::Inch{x: 72, y: 72});
@@ -165,9 +165,9 @@ impl<W: Write> JpegEncoder<W> {
     /// # Example
     /// ```no_run
     /// # pub fn main() -> std::io::Result<()> {
-    /// use jpeg_encoder::JpegEncoder;
+    /// use jpeg_encoder::Encoder;
     ///
-    /// let mut encoder = JpegEncoder::new_file("some.jpeg", 100)?;
+    /// let mut encoder = Encoder::new_file("some.jpeg", 100)?;
     ///
     /// encoder.set_progressive(true);
     ///
@@ -787,8 +787,8 @@ impl<W: Write> JpegEncoder<W> {
     }
 }
 
-impl JpegEncoder<BufWriter<File>> {
-    pub fn new_file<P: AsRef<Path>>(path: P, quality: u8) -> IOResult<JpegEncoder<BufWriter<File>>> {
+impl Encoder<BufWriter<File>> {
+    pub fn new_file<P: AsRef<Path>>(path: P, quality: u8) -> IOResult<Encoder<BufWriter<File>>> {
         let file = File::create(path)?;
         let buf = BufWriter::new(file);
         Ok(Self::new(buf, quality))
