@@ -4,9 +4,9 @@ use crate::marker::Marker;
 use crate::huffman::{HuffmanTable, CodingClass};
 use crate::image_buffer::*;
 use crate::quantization::QuantizationTable;
-use crate::Density;
+use crate::{Density, EncodingError};
 
-use std::io::{Write, Result as IOResult, Error as IOError, ErrorKind, BufWriter};
+use std::io::{Write, BufWriter};
 use std::fs::File;
 use std::path::Path;
 
@@ -228,7 +228,8 @@ impl<W: Write> Encoder<W> {
     /// By default, this value is None which is equal to "1 pixel per pixel".
     /// # Example
     /// ```no_run
-    /// # fn main() -> std::io::Result<()> {
+    /// # use jpeg_encoder::EncodingError;
+    /// # pub fn main() -> Result<(), EncodingError> {
     /// use jpeg_encoder::{Encoder, Density};
     ///
     /// let mut encoder = Encoder::new_file("some.jpeg", 100)?;
@@ -265,7 +266,8 @@ impl<W: Write> Encoder<W> {
     ///
     /// # Example
     /// ```no_run
-    /// # pub fn main() -> std::io::Result<()> {
+    /// # use jpeg_encoder::EncodingError;
+    /// # pub fn main() -> Result<(), EncodingError> {
     /// use jpeg_encoder::Encoder;
     ///
     /// let mut encoder = Encoder::new_file("some.jpeg", 100)?;
@@ -320,11 +322,11 @@ impl<W: Write> Encoder<W> {
     ///
     /// Segment numbers need to be in the range between 1 and 15<br>
     /// The maximum allowed data length is 2^16 - 2 bytes.
-    pub fn add_app_segment(&mut self, segment_nr: u8, data: &[u8]) -> IOResult<()> {
+    pub fn add_app_segment(&mut self, segment_nr: u8, data: &[u8]) -> Result<(), EncodingError> {
         if segment_nr == 0 || segment_nr > 15 {
-            Err(IOError::new(ErrorKind::Other, format!("Wrong app segment number: {}", segment_nr)))
+            Err(EncodingError::InvalidAppSegment(segment_nr))
         } else if data.len() > 65533 {
-            Err(IOError::new(ErrorKind::Other, format!("App segment exceeds maximum allow data length of 65533: {}", data.len())))
+            Err(EncodingError::AppSegmentTooLarge(data.len()))
         } else {
             self.app_segments.push((segment_nr, data.to_vec()));
             Ok(())
@@ -334,7 +336,7 @@ impl<W: Write> Encoder<W> {
     /// Add an ICC profile
     ///
     /// The maximum allowed data length is 16,707,345 bytes.
-    pub fn add_icc_profile(&mut self, data: &[u8]) -> IOResult<()> {
+    pub fn add_icc_profile(&mut self, data: &[u8]) -> Result<(), EncodingError> {
 
         // Based on https://www.color.org/ICC_Minor_Revision_for_Web.pdf
         // B.4  Embedding ICC profiles in JFIF files
@@ -346,7 +348,7 @@ impl<W: Write> Encoder<W> {
 
         // Sequence number is stored as a byte and starts with 1
         if num_chunks >= 255 {
-            return Err(IOError::new(ErrorKind::Other, format!("ICC profile exceeds maximum allow data length: {}", data.len())));
+            return Err(EncodingError::ICCTooLarge(data.len()));
         }
 
         let mut chunk_data = Vec::with_capacity(MAX_CHUNK_LENGTH);
@@ -374,12 +376,11 @@ impl<W: Write> Encoder<W> {
         width: u16,
         height: u16,
         color_type: ColorType,
-    ) -> IOResult<()> {
+    ) -> Result<(), EncodingError> {
         let required_data_len = width as usize * height as usize * color_type.get_bytes_per_pixel();
 
         if data.len() < required_data_len {
-            return Err(IOError::new(ErrorKind::Other,
-                                    format!("Image data too small for dimensions and color_type: {} need at least {}", data.len(), required_data_len)));
+            return Err(EncodingError::BadImageData { length: data.len(), required: required_data_len });
         }
 
         match color_type {
@@ -442,10 +443,12 @@ impl<W: Write> Encoder<W> {
     pub fn encode_image<I: ImageBuffer>(
         mut self,
         image: I,
-    ) -> IOResult<()> {
+    ) -> Result<(), EncodingError> {
         if image.width() == 0 || image.height() == 0 {
-            return Err(IOError::new(ErrorKind::Other,
-                                    format!("Image dimensions must be non zero: {}x{}", image.width(), image.height())));
+            return Err(EncodingError::ZeroImageDimensions {
+                width: image.width(),
+                height: image.height(),
+            });
         }
 
         let jpeg_color_type = image.get_jpeg_color_type();
@@ -482,7 +485,7 @@ impl<W: Write> Encoder<W> {
         Ok(())
     }
 
-    fn write_frame_header<I: ImageBuffer>(&mut self, image: &I) -> IOResult<()> {
+    fn write_frame_header<I: ImageBuffer>(&mut self, image: &I) -> Result<(), EncodingError> {
         self.writer.write_frame_header(image.width() as u16, image.height() as u16, &self.components, self.progressive_scans != 0)?;
 
         self.writer.write_quantization_segment(0, &self.quantization_tables[0])?;
@@ -520,7 +523,7 @@ impl<W: Write> Encoder<W> {
     fn encode_image_interleaved<I: ImageBuffer>(
         &mut self,
         image: I,
-    ) -> IOResult<()> {
+    ) -> Result<(), EncodingError> {
         self.write_frame_header(&image)?;
         self.writer.write_scan_header(&self.components.iter().collect::<Vec<_>>(), None)?;
 
@@ -587,7 +590,9 @@ impl<W: Write> Encoder<W> {
             }
         }
 
-        self.writer.finalize_bit_buffer()
+        self.writer.finalize_bit_buffer()?;
+
+        Ok(())
     }
 
     fn init_rows(&mut self, buffer_size: usize) -> [Vec<u8>; 4] {
@@ -631,7 +636,7 @@ impl<W: Write> Encoder<W> {
     fn encode_image_sequential<I: ImageBuffer>(
         &mut self,
         image: I,
-    ) -> IOResult<()> {
+    ) -> Result<(), EncodingError> {
         let blocks = self.encode_blocks(&image);
 
         if self.optimize_huffman_table {
@@ -665,7 +670,7 @@ impl<W: Write> Encoder<W> {
     fn encode_image_progressive<I: ImageBuffer>(
         &mut self,
         image: I,
-    ) -> IOResult<()> {
+    ) -> Result<(), EncodingError> {
         let blocks = self.encode_blocks(&image);
 
         if self.optimize_huffman_table {
@@ -913,7 +918,7 @@ impl Encoder<BufWriter<File>> {
     /// Create a new decoder that writes into a file
     ///
     /// See [new](Encoder::new) for further information.
-    pub fn new_file<P: AsRef<Path>>(path: P, quality: u8) -> IOResult<Encoder<BufWriter<File>>> {
+    pub fn new_file<P: AsRef<Path>>(path: P, quality: u8) -> Result<Encoder<BufWriter<File>>, EncodingError> {
         let file = File::create(path)?;
         let buf = BufWriter::new(file);
         Ok(Self::new(buf, quality))

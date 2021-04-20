@@ -2,7 +2,8 @@
 //!
 //! ## Using the encoder
 //! ```no_run
-//! # fn main() -> std::io::Result<()> {
+//! # use jpeg_encoder::EncodingError;
+//! # pub fn main() -> Result<(), EncodingError> {
 //! use jpeg_encoder::{Encoder, ColorType};
 //!
 //! // An array with 4 pixels in RGB format.
@@ -28,9 +29,11 @@ mod fdct;
 mod quantization;
 mod image_buffer;
 mod encoder;
+mod error;
 
 pub use writer::Density;
 pub use encoder::{ColorType, JpegColorType, SamplingFactor, Encoder};
+pub use error::EncodingError;
 pub use image_buffer::{ImageBuffer, rgb_to_ycbcr, cmyk_to_ycck};
 
 
