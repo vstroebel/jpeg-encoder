@@ -10,7 +10,7 @@ use std::io::{Write, Result as IOResult, Error as IOError, ErrorKind, BufWriter}
 use std::fs::File;
 use std::path::Path;
 
-/// Color types used in encoding
+/// # Color types used in encoding
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum JpegColorType {
     /// One component grayscale colorspace
@@ -38,7 +38,10 @@ impl JpegColorType {
     }
 }
 
-/// Color types for input images
+/// # Color types for input images
+///
+/// Available color input formats for [Encoder::encode]. Other types can be used
+/// by implementing a [ImageBuffer](crate::ImageBuffer).
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum ColorType {
     /// Grayscale with 1 byte per pixel
@@ -47,7 +50,7 @@ pub enum ColorType {
     /// RGB with 3 bytes per pixel
     Rgb,
 
-    /// Red, Gree, Blue with 4 bytes per pixel. The alpha channel will be ignored during encoding.
+    /// Red, Green, Blue with 4 bytes per pixel. The alpha channel will be ignored during encoding.
     Rgba,
 
     /// RGB with 3 bytes per pixel
@@ -83,9 +86,9 @@ impl ColorType {
 
 #[repr(u8)]
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
-/// Sampling factors for chroma subsampling
+/// # Sampling factors for chroma subsampling
 ///
-/// # Warning
+/// ## Warning
 /// Sampling factor of 4 are not supported by all encoders or applications
 pub enum SamplingFactor {
     /// No subsampling (1x1)
@@ -166,7 +169,7 @@ macro_rules! add_component {
     }
 }
 
-/// The JPEG encoder
+/// # The JPEG encoder
 pub struct Encoder<W: Write> {
     writer: JfifWriter<W>,
     density: Density,
