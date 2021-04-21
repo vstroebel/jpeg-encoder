@@ -244,8 +244,9 @@ impl HuffmanTable {
         }
     }
 
-    pub fn get_for_value(&self, value: u8) -> (u8, u16) {
-        let res = self.lookup_table[value as usize];
+    #[inline]
+    pub fn get_for_value(&self, value: u8) -> &(u8, u16) {
+        let res = &self.lookup_table[value as usize];
         debug_assert!(res.0 > 0, "Got zero size code for value: {}", value);
         res
     }
