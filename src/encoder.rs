@@ -933,8 +933,8 @@ fn get_block(data: &[u8],
              width: usize) -> [i16; 64] {
     let mut block = [0i16; 64];
 
-    for x in 0..8 {
-        for y in 0..8 {
+    for y in 0..8 {
+        for x in 0..8 {
             let ix = start_x + (x * col_stride);
             let iy = start_y + (y * row_stride);
 
