@@ -1,6 +1,6 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
-use jpeg_encoder::{Encoder, ColorType};
+use jpeg_encoder::{Encoder, ColorType, SamplingFactor};
 use std::time::Duration;
 
 fn create_bench_img() -> (Vec<u8>, u16, u16) {
@@ -21,13 +21,13 @@ fn create_bench_img() -> (Vec<u8>, u16, u16) {
 }
 
 fn encode_rgb_100(res: &mut Vec<u8>, data: &[u8], width: u16, height: u16) {
-    let mut encoder = Encoder::new(res, 100);
+    let encoder = Encoder::new(res, 100);
     encoder.encode(data, width, height, ColorType::Rgb).unwrap();
 }
 
 fn encode_rgb_4x1(res: &mut Vec<u8>, data: &[u8], width: u16, height: u16) {
     let mut encoder = Encoder::new(res, 80);
-    encoder.set_sampling_factor(4, 1);
+    encoder.set_sampling_factor(SamplingFactor::R4_1_1);
     encoder.encode(data, width, height, ColorType::Rgb).unwrap();
 }
 
