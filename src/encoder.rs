@@ -400,45 +400,6 @@ impl<W: Write> Encoder<W> {
         Ok(())
     }
 
-    fn init_components(&mut self, color: JpegColorType) {
-        let (horizontal_sampling_factor, vertical_sampling_factor) = self.sampling_factor.get_sampling_factors();
-
-        match color {
-            JpegColorType::Luma => {
-                add_component!(self.components, 0, 0, 1, 1);
-            }
-            JpegColorType::Ycbcr => {
-                add_component!(self.components, 0, 0, horizontal_sampling_factor, vertical_sampling_factor);
-                add_component!(self.components, 1, 1, 1, 1);
-                add_component!(self.components, 2, 1, 1, 1);
-            }
-            JpegColorType::Cmyk => {
-                add_component!(self.components, 0, 1, 1, 1);
-                add_component!(self.components, 1, 1, 1, 1);
-                add_component!(self.components, 2, 1, 1, 1);
-                add_component!(self.components, 3, 0, horizontal_sampling_factor, vertical_sampling_factor);
-            }
-            JpegColorType::Ycck => {
-                add_component!(self.components, 0, 0, horizontal_sampling_factor, vertical_sampling_factor);
-                add_component!(self.components, 1, 1, 1, 1);
-                add_component!(self.components, 2, 1, 1, 1);
-                add_component!(self.components, 3, 0, horizontal_sampling_factor, vertical_sampling_factor);
-            }
-        }
-    }
-
-    fn get_max_sampling_size(&self) -> (usize, usize) {
-        let max_h_sampling = self.components
-            .iter()
-            .fold(1, |value, component| value.max(component.horizontal_sampling_factor));
-
-        let max_v_sampling = self.components
-            .iter()
-            .fold(1, |value, component| value.max(component.vertical_sampling_factor));
-
-        (usize::from(max_h_sampling), usize::from(max_v_sampling))
-    }
-
     /// Encode an image
     ///
     /// This will consume the encoder because it will get unusable after an image has been written.
@@ -487,6 +448,45 @@ impl<W: Write> Encoder<W> {
         Ok(())
     }
 
+    fn init_components(&mut self, color: JpegColorType) {
+        let (horizontal_sampling_factor, vertical_sampling_factor) = self.sampling_factor.get_sampling_factors();
+
+        match color {
+            JpegColorType::Luma => {
+                add_component!(self.components, 0, 0, 1, 1);
+            }
+            JpegColorType::Ycbcr => {
+                add_component!(self.components, 0, 0, horizontal_sampling_factor, vertical_sampling_factor);
+                add_component!(self.components, 1, 1, 1, 1);
+                add_component!(self.components, 2, 1, 1, 1);
+            }
+            JpegColorType::Cmyk => {
+                add_component!(self.components, 0, 1, 1, 1);
+                add_component!(self.components, 1, 1, 1, 1);
+                add_component!(self.components, 2, 1, 1, 1);
+                add_component!(self.components, 3, 0, horizontal_sampling_factor, vertical_sampling_factor);
+            }
+            JpegColorType::Ycck => {
+                add_component!(self.components, 0, 0, horizontal_sampling_factor, vertical_sampling_factor);
+                add_component!(self.components, 1, 1, 1, 1);
+                add_component!(self.components, 2, 1, 1, 1);
+                add_component!(self.components, 3, 0, horizontal_sampling_factor, vertical_sampling_factor);
+            }
+        }
+    }
+
+    fn get_max_sampling_size(&self) -> (usize, usize) {
+        let max_h_sampling = self.components
+            .iter()
+            .fold(1, |value, component| value.max(component.horizontal_sampling_factor));
+
+        let max_v_sampling = self.components
+            .iter()
+            .fold(1, |value, component| value.max(component.vertical_sampling_factor));
+
+        (usize::from(max_h_sampling), usize::from(max_v_sampling))
+    }
+
     fn write_frame_header<I: ImageBuffer>(&mut self, image: &I) -> Result<(), EncodingError> {
         self.writer.write_frame_header(image.width() as u16, image.height() as u16, &self.components, self.progressive_scans != 0)?;
 
@@ -522,6 +522,48 @@ impl<W: Write> Encoder<W> {
         Ok(())
     }
 
+
+    fn init_rows(&mut self, buffer_size: usize) -> [Vec<u8>; 4] {
+
+        // To simplify the code and to give the compiler more infos to optimize stuff we always initialize 4 components
+        // Resource overhead should be minimal because an empty Vec doesn't allocate
+
+        match self.components.len() {
+            1 => [
+                Vec::with_capacity(buffer_size),
+                Vec::new(),
+                Vec::new(),
+                Vec::new()
+            ],
+            3 => [
+                Vec::with_capacity(buffer_size),
+                Vec::with_capacity(buffer_size),
+                Vec::with_capacity(buffer_size),
+                Vec::new()
+            ],
+            4 => [
+                Vec::with_capacity(buffer_size),
+                Vec::with_capacity(buffer_size),
+                Vec::with_capacity(buffer_size),
+                Vec::with_capacity(buffer_size)
+            ],
+            len => unreachable!("Unsupported component length: {}", len),
+        }
+    }
+
+    fn quantize_block(&self, component: &Component, block: &[i16; 64]) -> [i16; 64] {
+        let mut q_block = [0i16; 64];
+
+        for i in 0..64 {
+            q_block[i] = self.quantization_tables[component.quantization_table as usize].quantize(block[ZIGZAG[i] as usize], i);
+        }
+
+        q_block
+    }
+
+    /// Encode all components with one scan
+    ///
+    /// This is only valid for sampling factors of 1 and 2
     fn encode_image_interleaved<I: ImageBuffer>(
         &mut self,
         image: I,
@@ -597,44 +639,7 @@ impl<W: Write> Encoder<W> {
         Ok(())
     }
 
-    fn init_rows(&mut self, buffer_size: usize) -> [Vec<u8>; 4] {
-
-        // To simplify the code and to give the compiler more infos to optimize stuff we always initialize 4 components
-        // Resource overhead should be minimal because an empty Vec doesn't allocate
-
-        match self.components.len() {
-            1 => [
-                Vec::with_capacity(buffer_size),
-                Vec::new(),
-                Vec::new(),
-                Vec::new()
-            ],
-            3 => [
-                Vec::with_capacity(buffer_size),
-                Vec::with_capacity(buffer_size),
-                Vec::with_capacity(buffer_size),
-                Vec::new()
-            ],
-            4 => [
-                Vec::with_capacity(buffer_size),
-                Vec::with_capacity(buffer_size),
-                Vec::with_capacity(buffer_size),
-                Vec::with_capacity(buffer_size)
-            ],
-            len => unreachable!("Unsupported component length: {}", len),
-        }
-    }
-
-    fn quantize_block(&self, component: &Component, block: &[i16; 64]) -> [i16; 64] {
-        let mut q_block = [0i16; 64];
-
-        for i in 0..64 {
-            q_block[i] = self.quantization_tables[component.quantization_table as usize].quantize(block[ZIGZAG[i] as usize], i);
-        }
-
-        q_block
-    }
-
+    /// Encode components with one scan per component
     fn encode_image_sequential<I: ImageBuffer>(
         &mut self,
         image: I,
