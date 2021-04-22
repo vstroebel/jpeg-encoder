@@ -41,7 +41,7 @@ impl JpegColorType {
 /// # Color types for input images
 ///
 /// Available color input formats for [Encoder::encode]. Other types can be used
-/// by implementing a [ImageBuffer](crate::ImageBuffer).
+/// by implementing an [ImageBuffer](crate::ImageBuffer).
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum ColorType {
     /// Grayscale with 1 byte per pixel
@@ -89,7 +89,7 @@ impl ColorType {
 /// # Sampling factors for chroma subsampling
 ///
 /// ## Warning
-/// Sampling factor of 4 are not supported by all encoders or applications
+/// Sampling factor of 4 are not supported by all decoders or applications
 pub enum SamplingFactor {
     /// No subsampling (1x1)
     R4_4_4 = 1 << 4 | 1,
@@ -142,7 +142,8 @@ impl SamplingFactor {
     pub(crate) fn supports_interleaved(&self) -> bool {
         use SamplingFactor::*;
 
-        // Interleaved mode is only supported with h/v sampling factors of 1 or 2
+        // Interleaved mode is only supported with h/v sampling factors of 1 or 2.
+        // Sampling factors of 4 needs sequential encoding
         matches!(self, R4_4_4 | R4_4_0 | R4_2_2 | R4_2_0)
     }
 }
@@ -180,6 +181,7 @@ pub struct Encoder<W: Write> {
 
     sampling_factor: SamplingFactor,
 
+    // A non zero value enables progressive mode
     progressive_scans: u8,
 
     optimize_huffman_table: bool,
@@ -667,6 +669,9 @@ impl<W: Write> Encoder<W> {
         Ok(())
     }
 
+    /// Encode image in progressive mode
+    ///
+    /// This only support spectral selection for now
     fn encode_image_progressive<I: ImageBuffer>(
         &mut self,
         image: I,
@@ -679,6 +684,8 @@ impl<W: Write> Encoder<W> {
 
         self.write_frame_header(&image)?;
 
+        // Phase 1: DC Scan
+        //          Only the DC coefficients can be transfer in the first component scans
         for (i, component) in self.components.iter().enumerate() {
             self.writer.write_scan_header(&[component], Some((0, 0)))?;
 
@@ -697,6 +704,7 @@ impl<W: Write> Encoder<W> {
             self.writer.finalize_bit_buffer()?;
         }
 
+        // Phase 2: AC scans
         let scans = self.progressive_scans as usize - 1;
 
         let values_per_scan = 64 / scans;
@@ -704,7 +712,7 @@ impl<W: Write> Encoder<W> {
         for scan in 0..scans {
             let start = (scan * values_per_scan).max(1);
             let end = if scan == scans - 1 {
-                // Due to rounding we might need to transfer more than values_per_scan values in the last scan
+                // ensure last scan is always transfers the remaining coefficients
                 64
             } else {
                 (scan + 1) * values_per_scan
@@ -813,7 +821,11 @@ impl<W: Write> Encoder<W> {
         }
     }
 
+    // Create new huffman tables optimized for this image
     fn optimize_huffman_table(&mut self, blocks: &[Vec<[i16; 64]>; 4]) {
+
+        // TODO: Find out if it's possible to reuse some code from the writer
+
         let max_tables = self.components.len().min(2) as u8;
 
         for table in 0..max_tables {
