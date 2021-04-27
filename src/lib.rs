@@ -153,43 +153,19 @@ mod tests {
 
         let mut result = Vec::new();
         let mut encoder = Encoder::new(&mut result, 100);
-        encoder.set_sampling_factor(SamplingFactor::R4_2_2);
+        encoder.set_sampling_factor(SamplingFactor::F_2_2);
         encoder.encode(&data, width, height, ColorType::Rgb).unwrap();
 
         check_result(data, width, height, &mut result, PixelFormat::RGB24);
     }
 
     #[test]
-    fn test_rgb_2_0() {
+    fn test_rgb_2_1() {
         let (data, width, height) = create_test_img_rgb();
 
         let mut result = Vec::new();
         let mut encoder = Encoder::new(&mut result, 100);
-        encoder.set_sampling_factor(SamplingFactor::R4_2_0);
-        encoder.encode(&data, width, height, ColorType::Rgb).unwrap();
-
-        check_result(data, width, height, &mut result, PixelFormat::RGB24);
-    }
-
-    #[test]
-    fn test_rgb_4_0() {
-        let (data, width, height) = create_test_img_rgb();
-
-        let mut result = Vec::new();
-        let mut encoder = Encoder::new(&mut result, 100);
-        encoder.set_sampling_factor(SamplingFactor::R4_4_0);
-        encoder.encode(&data, width, height, ColorType::Rgb).unwrap();
-
-        check_result(data, width, height, &mut result, PixelFormat::RGB24);
-    }
-
-    #[test]
-    fn test_rgb_1_1() {
-        let (data, width, height) = create_test_img_rgb();
-
-        let mut result = Vec::new();
-        let mut encoder = Encoder::new(&mut result, 100);
-        encoder.set_sampling_factor(SamplingFactor::R4_1_1);
+        encoder.set_sampling_factor(SamplingFactor::F_2_1);
         encoder.encode(&data, width, height, ColorType::Rgb).unwrap();
 
         check_result(data, width, height, &mut result, PixelFormat::RGB24);
@@ -201,7 +177,31 @@ mod tests {
 
         let mut result = Vec::new();
         let mut encoder = Encoder::new(&mut result, 100);
-        encoder.set_sampling_factor(SamplingFactor::R4_4_1);
+        encoder.set_sampling_factor(SamplingFactor::F_4_1);
+        encoder.encode(&data, width, height, ColorType::Rgb).unwrap();
+
+        check_result(data, width, height, &mut result, PixelFormat::RGB24);
+    }
+
+    #[test]
+    fn test_rgb_1_1() {
+        let (data, width, height) = create_test_img_rgb();
+
+        let mut result = Vec::new();
+        let mut encoder = Encoder::new(&mut result, 100);
+        encoder.set_sampling_factor(SamplingFactor::F_1_1);
+        encoder.encode(&data, width, height, ColorType::Rgb).unwrap();
+
+        check_result(data, width, height, &mut result, PixelFormat::RGB24);
+    }
+
+    #[test]
+    fn test_rgb_1_4() {
+        let (data, width, height) = create_test_img_rgb();
+
+        let mut result = Vec::new();
+        let mut encoder = Encoder::new(&mut result, 100);
+        encoder.set_sampling_factor(SamplingFactor::F_1_4);
         encoder.encode(&data, width, height, ColorType::Rgb).unwrap();
 
         check_result(data, width, height, &mut result, PixelFormat::RGB24);
@@ -213,7 +213,7 @@ mod tests {
 
         let mut result = Vec::new();
         let mut encoder = Encoder::new(&mut result, 100);
-        encoder.set_sampling_factor(SamplingFactor::R4_2_2);
+        encoder.set_sampling_factor(SamplingFactor::F_2_1);
         encoder.set_progressive(true);
 
         encoder.encode(&data, width, height, ColorType::Rgb).unwrap();
@@ -227,7 +227,7 @@ mod tests {
 
         let mut result = Vec::new();
         let mut encoder = Encoder::new(&mut result, 100);
-        encoder.set_sampling_factor(SamplingFactor::R4_2_2);
+        encoder.set_sampling_factor(SamplingFactor::F_2_2);
         encoder.set_optimized_huffman_tables(true);
 
         encoder.encode(&data, width, height, ColorType::Rgb).unwrap();
@@ -241,7 +241,7 @@ mod tests {
 
         let mut result = Vec::new();
         let mut encoder = Encoder::new(&mut result, 100);
-        encoder.set_sampling_factor(SamplingFactor::R4_2_2);
+        encoder.set_sampling_factor(SamplingFactor::F_2_1);
         encoder.set_progressive(true);
         encoder.set_optimized_huffman_tables(true);
 

@@ -90,30 +90,40 @@ impl ColorType {
 ///
 /// ## Warning
 /// Sampling factor of 4 are not supported by all decoders or applications
+#[allow(non_camel_case_types)]
 pub enum SamplingFactor {
-    /// No subsampling (1x1)
-    R4_4_4 = 1 << 4 | 1,
+    F_1_1 = 1 << 4 | 1,
+    F_2_1 = 2 << 4 | 1,
+    F_1_2 = 1 << 4 | 2,
+    F_2_2 = 2 << 4 | 2,
+    F_4_1 = 4 << 4 | 1,
+    F_4_2 = 4 << 4 | 2,
+    F_1_4 = 1 << 4 | 4,
+    F_2_4 = 2 << 4 | 4,
 
-    /// Subsampling of 1x2
-    R4_4_0 = 1 << 4 | 2,
+    /// Alias for F_1_1
+    R_4_4_4 = 0x80 | 1 << 4 | 1,
 
-    /// Subsampling of 1x4
-    R4_4_1 = 1 << 4 | 4,
+    /// Alias for F_1_2
+    R_4_4_0 = 0x80 | 1 << 4 | 2,
 
-    /// Subsampling of 2x1
-    R4_2_2 = 2 << 4 | 1,
+    /// Alias for F_1_4
+    R_4_4_1 = 0x80 | 1 << 4 | 4,
 
-    /// Subsampling of 2x2
-    R4_2_0 = 2 << 4 | 2,
+    /// Alias for F_2_1
+    R_4_2_2 = 0x80 | 2 << 4 | 1,
 
-    /// Subsampling of 2x4
-    R4_2_1 = 2 << 4 | 4,
+    /// Alias for F_2_2
+    R_4_2_0 = 0x80 | 2 << 4 | 2,
 
-    /// Subsampling of 4x1
-    R4_1_1 = 4 << 4 | 1,
+    /// Alias for F_2_4
+    R_4_2_1 = 0x80 | 2 << 4 | 4,
 
-    /// Subsampling of 4x2
-    R4_1_0 = 4 << 4 | 2,
+    /// Alias for F_4_1
+    R_4_1_1 = 0x80 | 4 << 4 | 1,
+
+    /// Alias for F_4_2
+    R_4_1_0 = 0x80 | 4 << 4 | 2,
 }
 
 impl SamplingFactor {
@@ -122,21 +132,21 @@ impl SamplingFactor {
         use SamplingFactor::*;
 
         match (horizontal, vertical) {
-            (1, 1) => Some(R4_4_4),
-            (1, 2) => Some(R4_4_0),
-            (1, 4) => Some(R4_4_1),
-            (2, 1) => Some(R4_2_2),
-            (2, 2) => Some(R4_2_0),
-            (2, 4) => Some(R4_2_1),
-            (4, 1) => Some(R4_1_1),
-            (4, 2) => Some(R4_1_0),
+            (1, 1) => Some(F_1_1),
+            (1, 2) => Some(F_1_2),
+            (1, 4) => Some(F_1_4),
+            (2, 1) => Some(F_2_1),
+            (2, 2) => Some(F_2_2),
+            (2, 4) => Some(F_2_4),
+            (4, 1) => Some(F_4_1),
+            (4, 2) => Some(F_4_2),
             _ => None,
         }
     }
 
     pub(crate) fn get_sampling_factors(&self) -> (u8, u8) {
         let value = *self as u8;
-        (value >> 4, value & 0xf)
+        ((value >> 4) & 0x07, value & 0xf)
     }
 
     pub(crate) fn supports_interleaved(&self) -> bool {
@@ -144,7 +154,7 @@ impl SamplingFactor {
 
         // Interleaved mode is only supported with h/v sampling factors of 1 or 2.
         // Sampling factors of 4 needs sequential encoding
-        matches!(self, R4_4_4 | R4_4_0 | R4_2_2 | R4_2_0)
+        matches!(self, F_1_1 | F_2_1 | F_1_2 | F_2_2 | R_4_4_4 | R_4_4_0 | R_4_2_2 | R_4_2_0 )
     }
 }
 
@@ -193,7 +203,7 @@ impl<W: Write> Encoder<W> {
     /// Create a new encoder with the given quality
     ///
     /// The quality must be between 1 and 100 where 100 is the highest image quality.<br>
-    /// By default, quality settings below 90 use a chroma subsampling (4:2:0) which can
+    /// By default, quality settings below 90 use a chroma subsampling (2x2 / 4:2:0) which can
     /// be changed with [set_sampling_factor](Encoder::set_sampling_factor)
     pub fn new(w: W, quality: u8) -> Encoder<W> {
         let huffman_tables = [
@@ -207,9 +217,9 @@ impl<W: Write> Encoder<W> {
         ];
 
         let sampling_factor = if quality < 90 {
-            SamplingFactor::R4_2_0
+            SamplingFactor::F_2_2
         } else {
-            SamplingFactor::R4_4_4
+            SamplingFactor::F_1_1
         };
 
         Encoder {
@@ -985,6 +995,7 @@ fn get_num_bits(mut value: i16) -> u8 {
 mod tests {
     use crate::encoder::get_num_bits;
     use crate::writer::get_code;
+    use crate::SamplingFactor;
 
     #[test]
     fn test_get_num_bits() {
@@ -996,5 +1007,26 @@ mod tests {
 
             assert_eq!(num_bits1, num_bits2, "Difference in num bits for value {}: {} vs {}", value, num_bits1, num_bits2);
         }
+    }
+
+    #[test]
+    fn sampling_factors() {
+        assert_eq!(SamplingFactor::F_1_1.get_sampling_factors(), (1, 1));
+        assert_eq!(SamplingFactor::F_2_1.get_sampling_factors(), (2, 1));
+        assert_eq!(SamplingFactor::F_1_2.get_sampling_factors(), (1, 2));
+        assert_eq!(SamplingFactor::F_2_2.get_sampling_factors(), (2, 2));
+        assert_eq!(SamplingFactor::F_4_1.get_sampling_factors(), (4, 1));
+        assert_eq!(SamplingFactor::F_4_2.get_sampling_factors(), (4, 2));
+        assert_eq!(SamplingFactor::F_1_4.get_sampling_factors(), (1, 4));
+        assert_eq!(SamplingFactor::F_2_4.get_sampling_factors(), (2, 4));
+
+        assert_eq!(SamplingFactor::R_4_4_4.get_sampling_factors(), (1, 1));
+        assert_eq!(SamplingFactor::R_4_4_0.get_sampling_factors(), (1, 2));
+        assert_eq!(SamplingFactor::R_4_4_1.get_sampling_factors(), (1, 4));
+        assert_eq!(SamplingFactor::R_4_2_2.get_sampling_factors(), (2, 1));
+        assert_eq!(SamplingFactor::R_4_2_0.get_sampling_factors(), (2, 2));
+        assert_eq!(SamplingFactor::R_4_2_1.get_sampling_factors(), (2, 4));
+        assert_eq!(SamplingFactor::R_4_1_1.get_sampling_factors(), (4, 1));
+        assert_eq!(SamplingFactor::R_4_1_0.get_sampling_factors(), (4, 2));
     }
 }
