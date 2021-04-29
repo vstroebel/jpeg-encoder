@@ -1,5 +1,14 @@
 # JPEG encoder
 
+JPEG encoder written in Rust
+
+## Features
+
+- Baseline and progressive compression
+- Chroma subsampling
+- Optimized huffman tables
+- 1, 3 and 4 component colorspaces
+
 ## Example
 ```rust
 use jpeg_encoder::{Encoder, ColorType};
@@ -19,9 +28,19 @@ let mut encoder = Encoder::new_file("some.jpeg", 100)?;
 encoder.encode(&data, 2, 2, ColorType::Rgb)?;
 ```
 
+## Minimum Supported Version of Rust (MSRV)
+
+This crate needs at lest 1.42 or higher.
+
 ## License
 
 This project is licensed under either of
 
 * Apache License, Version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or https://www.apache.org/licenses/LICENSE-2.0)
 * MIT license ([LICENSE-MIT](LICENSE-MIT) or https://opensource.org/licenses/MIT)
+
+## Contribution
+
+Unless you explicitly state otherwise, any contribution intentionally submitted 
+for inclusion in serde_urlencoded by you, as defined in the Apache-2.0 license, 
+shall be dual licensed as above, without any additional terms or conditions.

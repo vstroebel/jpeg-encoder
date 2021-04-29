@@ -24,7 +24,7 @@ static DEFAULT_CHROMA_TABLE: [u8; 64] = [
 
 ///
 pub struct QuantizationTable {
-    table: [NonZeroU8; 64]
+    table: [NonZeroU8; 64],
 }
 
 impl QuantizationTable {

@@ -238,20 +238,6 @@ impl<W: Write> Encoder<W> {
     /// Set pixel density for the image
     ///
     /// By default, this value is None which is equal to "1 pixel per pixel".
-    /// # Example
-    /// ```no_run
-    /// # use jpeg_encoder::EncodingError;
-    /// # pub fn main() -> Result<(), EncodingError> {
-    /// use jpeg_encoder::{Encoder, Density};
-    ///
-    /// let mut encoder = Encoder::new_file("some.jpeg", 100)?;
-    ///
-    /// // Set horizontal and vertical density to 72 dpi (dots per inch)
-    /// encoder.set_density(Density::Inch{x: 72, y: 72});
-    ///
-    /// assert_eq!(encoder.density(), Density::Inch{x: 72, y: 72});
-    /// # Ok(())
-    /// # }
     pub fn set_density(&mut self, density: Density) {
         self.density = density;
     }
@@ -275,21 +261,6 @@ impl<W: Write> Encoder<W> {
     ///
     /// By default, progressive encoding uses 4 scans.<br>
     /// Use [set_progressive_scans](Encoder::set_progressive_scans) to use a different number of scans
-    ///
-    /// # Example
-    /// ```no_run
-    /// # use jpeg_encoder::EncodingError;
-    /// # pub fn main() -> Result<(), EncodingError> {
-    /// use jpeg_encoder::Encoder;
-    ///
-    /// let mut encoder = Encoder::new_file("some.jpeg", 100)?;
-    ///
-    /// encoder.set_progressive(true);
-    ///
-    /// assert_eq!(encoder.progressive_scans(), Some(4));
-    /// # Ok(())
-    /// # }
-    /// ```
     pub fn set_progressive(&mut self, progressive: bool) {
         self.set_progressive_scans(if progressive {
             4
@@ -381,7 +352,6 @@ impl<W: Write> Encoder<W> {
     /// Encode an image
     ///
     /// Data format and length must conform to specified width, height and color type.
-    /// This will consume the encoder because it will get unusable after an image has been written.
     pub fn encode(
         self,
         data: &[u8],
@@ -411,8 +381,6 @@ impl<W: Write> Encoder<W> {
     }
 
     /// Encode an image
-    ///
-    /// This will consume the encoder because it will get unusable after an image has been written.
     pub fn encode_image<I: ImageBuffer>(
         mut self,
         image: I,
@@ -995,7 +963,7 @@ fn get_num_bits(mut value: i16) -> u8 {
 mod tests {
     use crate::encoder::get_num_bits;
     use crate::writer::get_code;
-    use crate::SamplingFactor;
+    use crate::{SamplingFactor, Encoder};
 
     #[test]
     fn test_get_num_bits() {
@@ -1028,5 +996,12 @@ mod tests {
         assert_eq!(SamplingFactor::R_4_2_1.get_sampling_factors(), (2, 4));
         assert_eq!(SamplingFactor::R_4_1_1.get_sampling_factors(), (4, 1));
         assert_eq!(SamplingFactor::R_4_1_0.get_sampling_factors(), (4, 2));
+    }
+
+    #[test]
+    fn test_progressive_scans_default() {
+        let mut encoder = Encoder::new_file("some.jpeg", 100).unwrap();
+        encoder.set_progressive(true);
+        assert_eq!(encoder.progressive_scans(), Some(4));
     }
 }
