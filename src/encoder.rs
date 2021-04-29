@@ -331,7 +331,7 @@ impl<W: Write> Encoder<W> {
 
         // Sequence number is stored as a byte and starts with 1
         if num_chunks >= 255 {
-            return Err(EncodingError::ICCTooLarge(data.len()));
+            return Err(EncodingError::IccTooLarge(data.len()));
         }
 
         let mut chunk_data = Vec::with_capacity(MAX_CHUNK_LENGTH);

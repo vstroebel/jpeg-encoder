@@ -11,7 +11,7 @@ pub enum EncodingError {
     AppSegmentTooLarge(usize),
 
     /// Color profile exceeds maximum allowed data length
-    ICCTooLarge(usize),
+    IccTooLarge(usize),
 
     /// Image data is too short
     BadImageData { length: usize, required: usize },
@@ -43,7 +43,7 @@ impl Display for EncodingError {
                 "App segment exceeds maximum allowed data length of 65533: {}",
                 length
             ),
-            ICCTooLarge(length) => write!(
+            IccTooLarge(length) => write!(
                 f,
                 "ICC profile exceeds maximum allowed data length: {}",
                 length
