@@ -91,7 +91,8 @@ const DCT_SIZE: usize = 8;
 
 #[inline(always)]
 fn descale(x: i32, n: i32) -> i32 {
-    x >> n
+    // right shift with rounding
+    (x + (1 << (n - 1))) >> n
 }
 
 #[inline(always)]
