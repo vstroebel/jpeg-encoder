@@ -262,11 +262,11 @@ impl<W: Write> Encoder<W> {
     /// By default, progressive encoding uses 4 scans.<br>
     /// Use [set_progressive_scans](Encoder::set_progressive_scans) to use a different number of scans
     pub fn set_progressive(&mut self, progressive: bool) {
-        self.set_progressive_scans(if progressive {
+        self.progressive_scans = if progressive {
             4
         } else {
             0
-        });
+        };
     }
 
     /// Set number of scans per component for progressive encoding
@@ -999,9 +999,12 @@ mod tests {
     }
 
     #[test]
-    fn test_progressive_scans_default() {
+    fn test_set_progressive() {
         let mut encoder = Encoder::new_file("some.jpeg", 100).unwrap();
         encoder.set_progressive(true);
         assert_eq!(encoder.progressive_scans(), Some(4));
+
+        encoder.set_progressive(false);
+        assert_eq!(encoder.progressive_scans(), None);
     }
 }
