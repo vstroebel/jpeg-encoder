@@ -19,7 +19,9 @@ jobs:
         rust: ["1.42", stable, nightly]
 
     steps:
-    -  with:
+    - name: Installing Rust toolchain
+      uses: actions-rs/toolchain@v1
+      with:
           override: true
           toolchain: ${{ matrix.rust }}
     - uses: actions/checkout@v2
