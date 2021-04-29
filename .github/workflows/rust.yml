@@ -16,7 +16,7 @@ jobs:
     
     strategy:
       matrix:
-        rust: ["1.42", stable, nightly]
+        rust: ["1.43", stable, nightly]
 
     steps:
     - name: Installing Rust toolchain
