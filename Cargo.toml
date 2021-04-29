@@ -1,9 +1,15 @@
 [package]
 name = "jpeg-encoder"
-version = "0.1.0"
+version = "0.0.1"
 authors = ["Volker Ströbel <volkerstroebel@mysurdity.de>"]
 edition = "2018"
 license = "MIT OR Apache-2.0"
+description = "JPEG encoder"
+categories = ["multimedia::images"]
+keywords = ["jpg", "jpeg", "encoder", "image"]
+readme = "README.md"
+repository = "https://github.com/vstroebel/jpeg-encoder"
+exclude = ["benches/*"]
 
 [dependencies]
 
