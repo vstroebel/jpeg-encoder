@@ -9,7 +9,6 @@ categories = ["multimedia::images"]
 keywords = ["jpg", "jpeg", "encoder", "image"]
 readme = "README.md"
 repository = "https://github.com/vstroebel/jpeg-encoder"
-exclude = ["benches/*"]
 
 [dependencies]
 
