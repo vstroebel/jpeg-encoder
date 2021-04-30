@@ -128,7 +128,7 @@ pub(crate) fn fdct(data: &mut [i16; 64]) {
         let tmp11 = tmp1 + tmp2;
         let tmp12 = tmp1 - tmp2;
 
-        data[offset + 0] = into_el((tmp10 + tmp11 - 8 * 128) << PASS1_BITS);
+        data[offset + 0] = into_el((tmp10 + tmp11) << PASS1_BITS);
         data[offset + 4] = into_el((tmp10 - tmp11) << PASS1_BITS);
 
         let z1 = (tmp12 + tmp13) * FIX_0_541196100;

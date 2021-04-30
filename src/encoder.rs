@@ -933,7 +933,7 @@ fn get_block(data: &[u8],
             let ix = start_x + (x * col_stride);
             let iy = start_y + (y * row_stride);
 
-            block[y * 8 + x] = data[iy * width + ix] as i16;
+            block[y * 8 + x] = (data[iy * width + ix] as i16) - 127;
         }
     }
 
