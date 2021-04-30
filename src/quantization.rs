@@ -1,4 +1,4 @@
-use std::num::NonZeroU8;
+use std::num::NonZeroU16;
 
 static DEFAULT_LUMA_TABLE: [u8; 64] = [
     16, 11, 10, 16, 24, 40, 51, 61,
@@ -22,9 +22,8 @@ static DEFAULT_CHROMA_TABLE: [u8; 64] = [
     99, 99, 99, 99, 99, 99, 99, 99,
 ];
 
-///
 pub struct QuantizationTable {
-    table: [NonZeroU8; 64],
+    table: [NonZeroU16; 64],
 }
 
 impl QuantizationTable {
@@ -37,14 +36,17 @@ impl QuantizationTable {
             200 - quality * 2
         };
 
-        let mut q_table = [NonZeroU8::new(1).unwrap(); 64];
+        let mut q_table = [NonZeroU16::new(1).unwrap(); 64];
 
         for (i, &v) in table.iter().enumerate() {
             let v = v as u32;
 
             let v = (v * scale + 50) / 100;
 
-            q_table[i] = NonZeroU8::new(v.max(1).min(255) as u8).unwrap();
+            let v = v.max(1).min(255) as u16;
+
+            // Table values are premultiplied with 8 because dct is scaled by 8
+            q_table[i] = NonZeroU16::new(v << 3).unwrap();
         }
 
         QuantizationTable {
@@ -62,13 +64,14 @@ impl QuantizationTable {
 
     #[inline]
     pub fn get(&self, index: usize) -> u8 {
-        self.table[index].get()
+        (self.table[index].get() >> 3) as u8
     }
 
     #[inline]
     pub fn quantize(&self, value: i16, index: usize) -> i16 {
-        let q_value = self.table[index].get() as i16;
-        let value = value / q_value;
-        (value + 4) / 8
+        // Using i32 as intermediate value allows the compiler to remove an overflow check
+        let q_value = self.table[index].get() as i32;
+        let value = (value as i32 + (q_value / 2)) / q_value;
+        value as i16
     }
 }
