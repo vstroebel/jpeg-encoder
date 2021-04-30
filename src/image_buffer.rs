@@ -22,9 +22,9 @@ pub fn rgb_to_ycbcr(r: u8, g: u8, b: u8) -> (u8, u8, u8) {
     let cb = -11059 * r - 21709 * g + 32768 * b + (128 << 16);
     let cr = 32768 * r - 27439 * g - 5329 * b + (128 << 16);
 
-    let y = y >> 16;
-    let cb = cb >> 16;
-    let cr = cr >> 16;
+    let y = (y + (1 << 15)) >> 16;
+    let cb = (cb + (1 << 15)) >> 16;
+    let cr = (cr + (1 << 15)) >> 16;
 
     (y as u8, cb as u8, cr as u8)
 }
@@ -253,5 +253,109 @@ impl<'a> ImageBuffer for YcckImage<'a> {
         buffers[1].push(self.0[offset + 1]);
         buffers[2].push(self.0[offset + 2]);
         buffers[3].push(self.0[offset + 3]);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::rgb_to_ycbcr;
+
+    fn assert_rgb_to_ycbcr(rgb: [u8; 3], ycbcr: [u8; 3]) {
+        let (y, cb, cr) = rgb_to_ycbcr(rgb[0], rgb[1], rgb[2]);
+        assert_eq!([y, cb, cr], ycbcr);
+    }
+
+    #[test]
+    fn test_rgb_to_ycbcr() {
+        // Values taken from libjpeg for a common image
+
+        assert_rgb_to_ycbcr([59, 109, 6], [82, 85, 111]);
+        assert_rgb_to_ycbcr([29, 60, 11], [45, 109, 116]);
+        assert_rgb_to_ycbcr([57, 114, 26], [87, 94, 107]);
+        assert_rgb_to_ycbcr([30, 60, 6], [45, 106, 117]);
+        assert_rgb_to_ycbcr([41, 75, 11], [58, 102, 116]);
+        assert_rgb_to_ycbcr([145, 184, 108], [164, 97, 115]);
+        assert_rgb_to_ycbcr([33, 85, 7], [61, 98, 108]);
+        assert_rgb_to_ycbcr([61, 90, 40], [76, 108, 118]);
+        assert_rgb_to_ycbcr([75, 127, 45], [102, 96, 109]);
+        assert_rgb_to_ycbcr([30, 56, 14], [43, 111, 118]);
+        assert_rgb_to_ycbcr([106, 142, 81], [124, 104, 115]);
+        assert_rgb_to_ycbcr([35, 59, 11], [46, 108, 120]);
+        assert_rgb_to_ycbcr([170, 203, 123], [184, 94, 118]);
+        assert_rgb_to_ycbcr([45, 87, 16], [66, 100, 113]);
+        assert_rgb_to_ycbcr([59, 109, 21], [84, 92, 110]);
+        assert_rgb_to_ycbcr([100, 167, 36], [132, 74, 105]);
+        assert_rgb_to_ycbcr([17, 53, 5], [37, 110, 114]);
+        assert_rgb_to_ycbcr([226, 244, 220], [236, 119, 121]);
+        assert_rgb_to_ycbcr([192, 214, 120], [197, 85, 125]);
+        assert_rgb_to_ycbcr([63, 107, 22], [84, 93, 113]);
+        assert_rgb_to_ycbcr([44, 78, 19], [61, 104, 116]);
+        assert_rgb_to_ycbcr([72, 106, 54], [90, 108, 115]);
+        assert_rgb_to_ycbcr([99, 123, 73], [110, 107, 120]);
+        assert_rgb_to_ycbcr([188, 216, 148], [200, 99, 120]);
+        assert_rgb_to_ycbcr([19, 46, 7], [33, 113, 118]);
+        assert_rgb_to_ycbcr([56, 95, 40], [77, 107, 113]);
+        assert_rgb_to_ycbcr([81, 120, 56], [101, 103, 114]);
+        assert_rgb_to_ycbcr([9, 30, 0], [20, 117, 120]);
+        assert_rgb_to_ycbcr([90, 118, 46], [101, 97, 120]);
+        assert_rgb_to_ycbcr([24, 52, 0], [38, 107, 118]);
+        assert_rgb_to_ycbcr([32, 69, 9], [51, 104, 114]);
+        assert_rgb_to_ycbcr([74, 134, 33], [105, 88, 106]);
+        assert_rgb_to_ycbcr([37, 74, 7], [55, 101, 115]);
+        assert_rgb_to_ycbcr([69, 119, 31], [94, 92, 110]);
+        assert_rgb_to_ycbcr([63, 112, 21], [87, 91, 111]);
+        assert_rgb_to_ycbcr([90, 148, 17], [116, 72, 110]);
+        assert_rgb_to_ycbcr([50, 97, 30], [75, 102, 110]);
+        assert_rgb_to_ycbcr([99, 129, 72], [114, 105, 118]);
+        assert_rgb_to_ycbcr([161, 196, 57], [170, 64, 122]);
+        assert_rgb_to_ycbcr([10, 26, 1], [18, 118, 122]);
+        assert_rgb_to_ycbcr([87, 128, 68], [109, 105, 112]);
+        assert_rgb_to_ycbcr([111, 155, 73], [132, 94, 113]);
+        assert_rgb_to_ycbcr([33, 75, 11], [55, 103, 112]);
+        assert_rgb_to_ycbcr([70, 122, 51], [98, 101, 108]);
+        assert_rgb_to_ycbcr([22, 74, 3], [50, 101, 108]);
+        assert_rgb_to_ycbcr([88, 142, 45], [115, 89, 109]);
+        assert_rgb_to_ycbcr([66, 107, 40], [87, 101, 113]);
+        assert_rgb_to_ycbcr([18, 45, 0], [32, 110, 118]);
+        assert_rgb_to_ycbcr([163, 186, 88], [168, 83, 124]);
+        assert_rgb_to_ycbcr([47, 104, 4], [76, 88, 108]);
+        assert_rgb_to_ycbcr([147, 211, 114], [181, 90, 104]);
+        assert_rgb_to_ycbcr([42, 77, 18], [60, 104, 115]);
+        assert_rgb_to_ycbcr([37, 72, 6], [54, 101, 116]);
+        assert_rgb_to_ycbcr([84, 140, 55], [114, 95, 107]);
+        assert_rgb_to_ycbcr([46, 98, 25], [74, 100, 108]);
+        assert_rgb_to_ycbcr([48, 97, 20], [74, 98, 110]);
+        assert_rgb_to_ycbcr([189, 224, 156], [206, 100, 116]);
+        assert_rgb_to_ycbcr([36, 83, 0], [59, 94, 111]);
+        assert_rgb_to_ycbcr([159, 186, 114], [170, 97, 120]);
+        assert_rgb_to_ycbcr([75, 118, 46], [97, 99, 112]);
+        assert_rgb_to_ycbcr([193, 233, 158], [212, 97, 114]);
+        assert_rgb_to_ycbcr([76, 116, 48], [96, 101, 114]);
+        assert_rgb_to_ycbcr([108, 157, 79], [133, 97, 110]);
+        assert_rgb_to_ycbcr([180, 208, 155], [194, 106, 118]);
+        assert_rgb_to_ycbcr([74, 126, 53], [102, 100, 108]);
+        assert_rgb_to_ycbcr([72, 123, 46], [99, 98, 109]);
+        assert_rgb_to_ycbcr([71, 123, 34], [97, 92, 109]);
+        assert_rgb_to_ycbcr([130, 184, 72], [155, 81, 110]);
+        assert_rgb_to_ycbcr([30, 61, 17], [47, 111, 116]);
+        assert_rgb_to_ycbcr([27, 71, 0], [50, 100, 112]);
+        assert_rgb_to_ycbcr([45, 73, 24], [59, 108, 118]);
+        assert_rgb_to_ycbcr([139, 175, 93], [155, 93, 117]);
+        assert_rgb_to_ycbcr([11, 38, 0], [26, 114, 118]);
+        assert_rgb_to_ycbcr([34, 87, 15], [63, 101, 107]);
+        assert_rgb_to_ycbcr([43, 76, 35], [61, 113, 115]);
+        assert_rgb_to_ycbcr([18, 35, 7], [27, 117, 122]);
+        assert_rgb_to_ycbcr([69, 97, 48], [83, 108, 118]);
+        assert_rgb_to_ycbcr([139, 176, 50], [151, 71, 120]);
+        assert_rgb_to_ycbcr([21, 51, 7], [37, 111, 117]);
+        assert_rgb_to_ycbcr([209, 249, 189], [230, 105, 113]);
+        assert_rgb_to_ycbcr([32, 66, 14], [50, 108, 115]);
+        assert_rgb_to_ycbcr([100, 143, 67], [121, 97, 113]);
+        assert_rgb_to_ycbcr([40, 96, 14], [70, 96, 107]);
+        assert_rgb_to_ycbcr([88, 130, 64], [110, 102, 112]);
+        assert_rgb_to_ycbcr([52, 112, 14], [83, 89, 106]);
+        assert_rgb_to_ycbcr([49, 72, 25], [60, 108, 120]);
+        assert_rgb_to_ycbcr([144, 193, 75], [165, 77, 113]);
+        assert_rgb_to_ycbcr([49, 94, 1], [70, 89, 113]);
     }
 }
