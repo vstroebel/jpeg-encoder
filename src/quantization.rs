@@ -71,7 +71,46 @@ impl QuantizationTable {
     pub fn quantize(&self, value: i16, index: usize) -> i16 {
         // Using i32 as intermediate value allows the compiler to remove an overflow check
         let q_value = self.table[index].get() as i32;
-        let value = (value as i32 + (q_value / 2)) / q_value;
+
+        let value = if value < 0 {
+            let value = -value;
+            let value = (value as i32 + (q_value / 2)) / q_value;
+            -value
+        } else {
+            (value as i32 + (q_value / 2)) / q_value
+        };
+
         value as i16
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::quantization::QuantizationTable;
+
+    #[test]
+    fn test_new_100() {
+        let q = QuantizationTable::default_luma(100);
+
+        for &v in &q.table {
+            let v = v.get();
+            assert_eq!(v, 1 << 3);
+        }
+
+        let q = QuantizationTable::default_chroma(100);
+
+        for &v in &q.table {
+            let v = v.get();
+            assert_eq!(v, 1 << 3);
+        }
+    }
+
+    #[test]
+    fn test_new_100_quantize() {
+        let q = QuantizationTable::default_luma(100);
+
+        for i in -255..255 {
+            assert_eq!(i, q.quantize(i << 3, 0));
+        }
     }
 }
