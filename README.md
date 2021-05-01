@@ -34,7 +34,7 @@ encoder.encode(&data, 2, 2, ColorType::Rgb)?;
 
 ## Minimum Supported Version of Rust (MSRV)
 
-This crate needs at lest 1.43 or higher.
+This crate needs at lest 1.47 or higher.
 
 ## License
 
