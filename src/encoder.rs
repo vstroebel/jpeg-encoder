@@ -1003,7 +1003,7 @@ mod tests {
 
     #[test]
     fn test_set_progressive() {
-        let mut encoder = Encoder::new_file("some.jpeg", 100).unwrap();
+        let mut encoder = Encoder::new(vec![], 100);
         encoder.set_progressive(true);
         assert_eq!(encoder.progressive_scans(), Some(4));
 
