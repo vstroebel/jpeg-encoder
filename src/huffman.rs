@@ -128,7 +128,7 @@ impl HuffmanTable {
         // Figure K.1
         loop {
             let mut v1 = None;
-            let mut v1_min = std::u32::MAX;
+            let mut v1_min = u32::MAX;
 
             // Find the largest value with the least non zero frequency
             for (i, &f) in freq.iter().enumerate() {
