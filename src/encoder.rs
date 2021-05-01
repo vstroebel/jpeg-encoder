@@ -532,8 +532,11 @@ impl<W: Write> Encoder<W> {
     fn quantize_block(&self, component: &Component, block: &[i16; 64]) -> [i16; 64] {
         let mut q_block = [0i16; 64];
 
+        let table = &self.quantization_tables[component.quantization_table as usize];
+
         for i in 0..64 {
-            q_block[i] = self.quantization_tables[component.quantization_table as usize].quantize(block[ZIGZAG[i] as usize], i);
+            let z = ZIGZAG[i] as usize;
+            q_block[i] = table.quantize(block[z], z);
         }
 
         q_block
