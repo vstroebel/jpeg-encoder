@@ -1,18 +1,5 @@
 #![allow(clippy::upper_case_acronyms)]
 
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum EntropyCoding {
-    Huffman,
-    Arithmetic,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum CodingProcess {
-    DctSequential,
-    DctProgressive,
-    Lossless,
-}
-
 // Table B.1
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Marker {
@@ -87,65 +74,9 @@ pub enum SOFType {
     DifferentialLosslessArithmetic,
 }
 
-use self::SOFType::*;
-
-impl SOFType {
-    pub fn is_baseline(self) -> bool {
-        self == BaselineDCT
-    }
-
-    pub fn is_differential(self) -> bool {
-        matches!(self, DifferentialSequentialDCT |
-                       DifferentialProgressiveDCT |
-                       DifferentialLossless |
-                       DifferentialSequentialDCTArithmetic |
-                       DifferentialProgressiveDCTArithmetic |
-                       DifferentialLosslessArithmetic)
-    }
-
-    pub fn get_coding_process(self) -> CodingProcess {
-        match self {
-            BaselineDCT |
-            ExtendedSequentialDCT |
-            DifferentialSequentialDCT |
-            ExtendedSequentialDCTArithmetic |
-            DifferentialSequentialDCTArithmetic => CodingProcess::DctSequential,
-
-            ProgressiveDCT |
-            DifferentialProgressiveDCT |
-            ProgressiveDCTArithmetic |
-            DifferentialProgressiveDCTArithmetic => CodingProcess::DctProgressive,
-
-            Lossless |
-            DifferentialLossless |
-            LosslessArithmeticCoding |
-            DifferentialLosslessArithmetic => CodingProcess::Lossless,
-        }
-    }
-
-    pub fn get_entry_coding(self) -> EntropyCoding {
-        match self {
-            BaselineDCT |
-            ExtendedSequentialDCT |
-            ProgressiveDCT |
-            Lossless |
-            DifferentialSequentialDCT |
-            DifferentialProgressiveDCT |
-            DifferentialLossless => EntropyCoding::Huffman,
-
-            ExtendedSequentialDCTArithmetic |
-            ProgressiveDCTArithmetic |
-            LosslessArithmeticCoding |
-            DifferentialSequentialDCTArithmetic |
-            DifferentialProgressiveDCTArithmetic |
-            DifferentialLosslessArithmetic => EntropyCoding::Arithmetic
-        }
-    }
-}
-
 impl From<Marker> for u8 {
     fn from(marker: Marker) -> Self {
-        use self::Marker::*;
+        use self::{Marker::*, SOFType::*};
 
         match marker {
             ZERO => 0x00,
