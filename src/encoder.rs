@@ -191,8 +191,7 @@ pub struct Encoder<W: Write> {
 
     sampling_factor: SamplingFactor,
 
-    // A non zero value enables progressive mode
-    progressive_scans: u8,
+    progressive_scans: Option<u8>,
 
     optimize_huffman_table: bool,
 
@@ -229,7 +228,7 @@ impl<W: Write> Encoder<W> {
             quantization_tables,
             huffman_tables,
             sampling_factor,
-            progressive_scans: 0,
+            progressive_scans: None,
             optimize_huffman_table: false,
             app_segments: Vec::new(),
         }
@@ -263,9 +262,9 @@ impl<W: Write> Encoder<W> {
     /// Use [set_progressive_scans](Encoder::set_progressive_scans) to use a different number of scans
     pub fn set_progressive(&mut self, progressive: bool) {
         self.progressive_scans = if progressive {
-            4
+            Some(4)
         } else {
-            0
+            None
         };
     }
 
@@ -278,15 +277,12 @@ impl<W: Write> Encoder<W> {
     /// If number of scans is not within valid range
     pub fn set_progressive_scans(&mut self, scans: u8) {
         assert!((2..=64).contains(&scans), "Invalid number of scans: {}", scans);
-        self.progressive_scans = scans;
+        self.progressive_scans = Some(scans);
     }
 
     /// Return number of progressive scans if progressive encoding is enabled
     pub fn progressive_scans(&self) -> Option<u8> {
-        match self.progressive_scans {
-            0 => None,
-            scans => Some(scans)
-        }
+        self.progressive_scans
     }
 
     /// Set if optimized huffman table should be created
@@ -413,8 +409,8 @@ impl<W: Write> Encoder<W> {
             self.writer.write_segment(Marker::APP(*nr), data)?;
         }
 
-        if self.progressive_scans != 0 {
-            self.encode_image_progressive(image)?;
+        if let Some(scans) = self.progressive_scans {
+            self.encode_image_progressive(image, scans)?;
         } else if self.optimize_huffman_table || !self.sampling_factor.supports_interleaved() {
             self.encode_image_sequential(image)?;
         } else {
@@ -466,7 +462,7 @@ impl<W: Write> Encoder<W> {
     }
 
     fn write_frame_header<I: ImageBuffer>(&mut self, image: &I) -> Result<(), EncodingError> {
-        self.writer.write_frame_header(image.width() as u16, image.height() as u16, &self.components, self.progressive_scans != 0)?;
+        self.writer.write_frame_header(image.width() as u16, image.height() as u16, &self.components, self.progressive_scans.is_some())?;
 
         self.writer.write_quantization_segment(0, &self.quantization_tables[0])?;
         self.writer.write_quantization_segment(1, &self.quantization_tables[1])?;
@@ -661,6 +657,7 @@ impl<W: Write> Encoder<W> {
     fn encode_image_progressive<I: ImageBuffer>(
         &mut self,
         image: I,
+        scans: u8,
     ) -> Result<(), EncodingError> {
         let blocks = self.encode_blocks(&image);
 
@@ -691,7 +688,7 @@ impl<W: Write> Encoder<W> {
         }
 
         // Phase 2: AC scans
-        let scans = self.progressive_scans as usize - 1;
+        let scans = scans as usize - 1;
 
         let values_per_scan = 64 / scans;
 
@@ -836,8 +833,8 @@ impl<W: Write> Encoder<W> {
                 }
 
                 if component.ac_huffman_table == table {
-                    if self.progressive_scans > 0 {
-                        let scans = self.progressive_scans as usize - 1;
+                    if let Some(scans) = self.progressive_scans {
+                        let scans = scans as usize - 1;
 
                         let values_per_scan = 64 / scans;
 
