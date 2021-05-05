@@ -193,6 +193,8 @@ pub struct Encoder<W: Write> {
 
     progressive_scans: Option<u8>,
 
+    restart_interval: Option<u16>,
+
     optimize_huffman_table: bool,
 
     app_segments: Vec<(u8, Vec<u8>)>,
@@ -229,6 +231,7 @@ impl<W: Write> Encoder<W> {
             huffman_tables,
             sampling_factor,
             progressive_scans: None,
+            restart_interval: None,
             optimize_huffman_table: false,
             app_segments: Vec::new(),
         }
@@ -283,6 +286,22 @@ impl<W: Write> Encoder<W> {
     /// Return number of progressive scans if progressive encoding is enabled
     pub fn progressive_scans(&self) -> Option<u8> {
         self.progressive_scans
+    }
+
+    /// Set restart interval
+    ///
+    /// Set numbers of MCUs between restart markers.
+    pub fn set_restart_interval(&mut self, interval: u16) {
+        self.restart_interval = if interval == 0 {
+            None
+        } else {
+            Some(interval)
+        };
+    }
+
+    /// Return the restart interval
+    pub fn restart_interval(&self) -> Option<u16> {
+        self.restart_interval
     }
 
     /// Set if optimized huffman table should be created
@@ -493,9 +512,12 @@ impl<W: Write> Encoder<W> {
             )?;
         }
 
+        if let Some(restart_interval) = self.restart_interval {
+            self.writer.write_dri(restart_interval)?;
+        }
+
         Ok(())
     }
-
 
     fn init_rows(&mut self, buffer_size: usize) -> [Vec<u8>; 4] {
 
@@ -563,6 +585,10 @@ impl<W: Write> Encoder<W> {
 
         let mut prev_dc = [0i16; 4];
 
+        let restart_interval = self.restart_interval.unwrap_or(0);
+        let mut restarts = 0;
+        let mut restarts_to_go = restart_interval;
+
         for block_y in 0..num_rows {
             for r in &mut row {
                 r.clear();
@@ -581,6 +607,16 @@ impl<W: Write> Encoder<W> {
             }
 
             for block_x in 0..num_cols {
+                if restart_interval > 0 && restarts_to_go == 0 {
+                    self.writer.finalize_bit_buffer()?;
+                    self.writer.write_marker(Marker::RST((restarts % 8) as u8))?;
+
+                    prev_dc[0] = 0;
+                    prev_dc[1] = 0;
+                    prev_dc[2] = 0;
+                    prev_dc[3] = 0;
+                }
+
                 for (i, component) in self.components.iter().enumerate() {
                     for v_offset in 0..component.vertical_sampling_factor as usize {
                         for h_offset in 0..component.horizontal_sampling_factor as usize {
@@ -608,6 +644,15 @@ impl<W: Write> Encoder<W> {
                         }
                     }
                 }
+
+                if restart_interval > 0 {
+                    if restarts_to_go == 0 {
+                        restarts_to_go = restart_interval;
+                        restarts += 1;
+                        restarts &= 7;
+                    }
+                    restarts_to_go -= 1;
+                }
             }
         }
 
@@ -630,11 +675,22 @@ impl<W: Write> Encoder<W> {
         self.write_frame_header(&image)?;
 
         for (i, component) in self.components.iter().enumerate() {
+            let restart_interval = self.restart_interval.unwrap_or(0);
+            let mut restarts = 0;
+            let mut restarts_to_go = restart_interval;
+
             self.writer.write_scan_header(&[component], None)?;
 
             let mut prev_dc = 0;
 
             for block in &blocks[i] {
+                if restart_interval > 0 && restarts_to_go == 0 {
+                    self.writer.finalize_bit_buffer()?;
+                    self.writer.write_marker(Marker::RST((restarts % 8) as u8))?;
+
+                    prev_dc = 0;
+                }
+
                 self.writer.write_block(
                     &block,
                     prev_dc,
@@ -643,6 +699,15 @@ impl<W: Write> Encoder<W> {
                 )?;
 
                 prev_dc = block[0];
+
+                if restart_interval > 0 {
+                    if restarts_to_go == 0 {
+                        restarts_to_go = restart_interval;
+                        restarts += 1;
+                        restarts &= 7;
+                    }
+                    restarts_to_go -= 1;
+                }
             }
 
             self.writer.finalize_bit_buffer()?;
@@ -672,9 +737,20 @@ impl<W: Write> Encoder<W> {
         for (i, component) in self.components.iter().enumerate() {
             self.writer.write_scan_header(&[component], Some((0, 0)))?;
 
+            let restart_interval = self.restart_interval.unwrap_or(0);
+            let mut restarts = 0;
+            let mut restarts_to_go = restart_interval;
+
             let mut prev_dc = 0;
 
             for block in &blocks[i] {
+                if restart_interval > 0 && restarts_to_go == 0 {
+                    self.writer.finalize_bit_buffer()?;
+                    self.writer.write_marker(Marker::RST((restarts % 8) as u8))?;
+
+                    prev_dc = 0;
+                }
+
                 self.writer.write_dc(
                     block[0],
                     prev_dc,
@@ -682,6 +758,15 @@ impl<W: Write> Encoder<W> {
                 )?;
 
                 prev_dc = block[0];
+
+                if restart_interval > 0 {
+                    if restarts_to_go == 0 {
+                        restarts_to_go = restart_interval;
+                        restarts += 1;
+                        restarts &= 7;
+                    }
+                    restarts_to_go -= 1;
+                }
             }
 
             self.writer.finalize_bit_buffer()?;
@@ -702,15 +787,33 @@ impl<W: Write> Encoder<W> {
             };
 
             for (i, component) in self.components.iter().enumerate() {
+                let restart_interval = self.restart_interval.unwrap_or(0);
+                let mut restarts = 0;
+                let mut restarts_to_go = restart_interval;
+
                 self.writer.write_scan_header(&[component], Some((start as u8, end as u8 - 1)))?;
 
                 for block in &blocks[i] {
+                    if restart_interval > 0 && restarts_to_go == 0 {
+                        self.writer.finalize_bit_buffer()?;
+                        self.writer.write_marker(Marker::RST((restarts % 8) as u8))?;
+                    }
+
                     self.writer.write_ac_block(
                         &block,
                         start,
                         end,
                         &self.huffman_tables[component.ac_huffman_table as usize].1,
                     )?;
+
+                    if restart_interval > 0 {
+                        if restarts_to_go == 0 {
+                            restarts_to_go = restart_interval;
+                            restarts += 1;
+                            restarts &= 7;
+                        }
+                        restarts_to_go -= 1;
+                    }
                 }
 
                 self.writer.finalize_bit_buffer()?;

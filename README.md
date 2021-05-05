@@ -12,6 +12,7 @@ JPEG encoder written in Rust
 - Chroma subsampling
 - Optimized huffman tables
 - 1, 3 and 4 component colorspaces
+- Restart interval
 
 ## Example
 ```rust

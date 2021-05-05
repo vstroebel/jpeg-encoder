@@ -209,6 +209,12 @@ impl<W: Write> JfifWriter<W> {
         Ok(())
     }
 
+    pub fn write_dri(&mut self, restart_interval: u16) -> IOResult<()> {
+        self.write_marker(Marker::DRI)?;
+        self.write_u16(4)?;
+        self.write_u16(restart_interval)
+    }
+
     #[inline]
     pub fn huffman_encode(&mut self, val: u8, table: &HuffmanTable) -> IOResult<()> {
         let &(size, code) = table.get_for_value(val);
