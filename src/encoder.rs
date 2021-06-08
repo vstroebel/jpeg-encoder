@@ -827,8 +827,13 @@ impl<W: Write> Encoder<W> {
         let width = image.width();
         let height = image.height();
 
-        let num_cols = ceil_div(usize::from(width), 8);
-        let num_rows = ceil_div(usize::from(height), 8);
+        let (max_h_sampling, max_v_sampling) = self.get_max_sampling_size();
+
+        let num_cols = ceil_div(usize::from(width), 8 * max_h_sampling) * max_h_sampling;
+        let num_rows = ceil_div(usize::from(height), 8 * max_v_sampling) * max_v_sampling;
+
+        debug_assert!(num_cols > 0);
+        debug_assert!(num_rows > 0);
 
         let buffer_width = (num_cols * 8) as usize;
         let buffer_size = (num_cols * num_rows * 64) as usize;
@@ -848,8 +853,6 @@ impl<W: Write> Encoder<W> {
 
         let mut blocks: [Vec<_>; 4] = self.init_block_buffers(buffer_size / 64);
 
-        let (max_h_sampling, max_v_sampling) = self.get_max_sampling_size();
-
         for (i, component) in self.components.iter().enumerate() {
             let h_scale = max_h_sampling as usize / component.horizontal_sampling_factor as usize;
             let v_scale = max_v_sampling as usize / component.vertical_sampling_factor as usize;
@@ -857,6 +860,8 @@ impl<W: Write> Encoder<W> {
             let cols = num_cols as usize / h_scale;
             let rows = num_rows as usize / v_scale;
 
+            debug_assert!(cols > 0);
+            debug_assert!(rows > 0);
 
             for block_y in 0..rows {
                 for block_x in 0..cols {
@@ -920,9 +925,16 @@ impl<W: Write> Encoder<W> {
             let mut ac_freq = [0u32; 257];
             ac_freq[256] = 1;
 
+            let mut had_ac = false;
+            let mut had_dc = false;
+
             for (i, component) in self.components.iter().enumerate() {
                 if component.dc_huffman_table == table {
+                    had_dc = true;
+
                     let mut prev_dc = 0;
+
+                    debug_assert!(!blocks[i].is_empty());
 
                     for block in &blocks[i] {
                         let value = block[0];
@@ -936,6 +948,8 @@ impl<W: Write> Encoder<W> {
                 }
 
                 if component.ac_huffman_table == table {
+                    had_ac = true;
+
                     if let Some(scans) = self.progressive_scans {
                         let scans = scans as usize - 1;
 
@@ -949,6 +963,8 @@ impl<W: Write> Encoder<W> {
                             } else {
                                 (scan + 1) * values_per_scan
                             };
+
+                            debug_assert!(!blocks[i].is_empty());
 
                             for block in &blocks[i] {
                                 let mut zero_run = 0;
@@ -1003,6 +1019,9 @@ impl<W: Write> Encoder<W> {
                     }
                 }
             }
+
+            assert!(had_dc, "Missing DC data for table {}", table);
+            assert!(had_ac, "Missing AC data for table {}", table);
 
             self.huffman_tables[table as usize] = (
                 HuffmanTable::new_optimized(dc_freq),

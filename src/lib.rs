@@ -383,4 +383,18 @@ mod tests {
 
         assert_eq!(icc, icc_out);
     }
+
+    #[test]
+    fn test_rgb_optimized_missing_table_frequency() {
+        let data = vec![0xfb, 0x15, 0x15];
+
+        let mut result = Vec::new();
+        let mut encoder = Encoder::new(&mut result, 100);
+        encoder.set_sampling_factor(SamplingFactor::F_2_2);
+        encoder.set_optimized_huffman_tables(true);
+
+        encoder.encode(&data, 1, 1, ColorType::Rgb).unwrap();
+
+        check_result(data, 1, 1, &mut result, PixelFormat::RGB24);
+    }
 }

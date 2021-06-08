@@ -210,6 +210,7 @@ impl HuffmanTable {
         }
 
         while bits[i] == 0 {
+            debug_assert!(i > 0, "Error creating codesizes for frequency {:?}", freq);
             i -= 1;
         }
         bits[i] -= 1;
