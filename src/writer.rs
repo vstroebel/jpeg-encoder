@@ -357,13 +357,13 @@ impl<W: Write> JfifWriter<W> {
             self.write_u8((component.dc_huffman_table << 4) | component.ac_huffman_table)?;
         }
 
-        let spectral = spectral.unwrap_or((0, 63));
+        let (spectral_start, spectral_end) = spectral.unwrap_or((0, 63));
 
         // Start of spectral or predictor selection
-        self.write_u8(spectral.0)?;
+        self.write_u8(spectral_start)?;
 
         // End of spectral selection
-        self.write_u8(spectral.1)?;
+        self.write_u8(spectral_end)?;
 
         // Successive approximation bit position high and low
         self.write_u8(0)?;
