@@ -1,0 +1,37 @@
+[package]
+name = "jpeg-encoder-fuzz"
+version = "0.0.0"
+authors = ["Automatically generated"]
+publish = false
+edition = "2018"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+
+[dependencies.jpeg-encoder]
+path = ".."
+
+# Prevent this from interfering with workspaces
+[workspace]
+members = ["."]
+
+[[bin]]
+name = "encode_rgb"
+path = "fuzz_targets/encode_rgb.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "encode_ycck_progressive"
+path = "fuzz_targets/encode_ycck_progressive.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "encode_rgb_optimited"
+path = "fuzz_targets/encode_rgb_optimited.rs"
+test = false
+doc = false
