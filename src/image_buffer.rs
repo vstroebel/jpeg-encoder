@@ -67,15 +67,17 @@ pub fn cmyk_to_ycck(c: u8, m: u8, y: u8, k: u8) -> (u8, u8, u8, u8) {
 ///         self.image.height() as u16
 ///     }
 ///
-///     fn fill_buffers(&self, x: u16, y: u16, buffers: &mut [Vec<u8>; 4]){
-///         let pixel = self.image.get_pixel(x as u32 ,y as u32);
+///     fn fill_buffers(&self, y: u16, buffers: &mut [Vec<u8>; 4]){
+///         for x in 0..self.width() {
+///             let pixel = self.image.get_pixel(x as u32 ,y as u32);
 ///
-///         let (y,cb,cr) = rgb_to_ycbcr(pixel[0], pixel[1], pixel[2]);
+///             let (y,cb,cr) = rgb_to_ycbcr(pixel[0], pixel[1], pixel[2]);
 ///
-///         // For YCbCr the 4th buffer is not used
-///         buffers[0].push(y);
-///         buffers[1].push(cb);
-///         buffers[2].push(cr);
+///             // For YCbCr the 4th buffer is not used
+///             buffers[0].push(y);
+///             buffers[1].push(cb);
+///             buffers[2].push(cr);
+///         }
 ///     }
 /// }
 ///
@@ -90,8 +92,8 @@ pub trait ImageBuffer {
     /// Height of the image
     fn height(&self) -> u16;
 
-    /// Add color values for the position to color component buffers
-    fn fill_buffers(&self, x: u16, y: u16, buffers: &mut [Vec<u8>; 4]);
+    /// Add color values for the row to color component buffers
+    fn fill_buffers(&self, y: u16, buffers: &mut [Vec<u8>; 4]);
 }
 
 pub(crate) struct GrayImage<'a>(pub &'a [u8], pub u16, pub u16);
@@ -109,10 +111,11 @@ impl<'a> ImageBuffer for GrayImage<'a> {
         self.2
     }
 
-    fn fill_buffers(&self, x: u16, y: u16, buffers: &mut [Vec<u8>; 4]) {
-        let offset = usize::from(y) * usize::from(self.1) + usize::from(x);
-
-        buffers[0].push(self.0[offset + 0]);
+    fn fill_buffers(&self, y: u16, buffers: &mut [Vec<u8>; 4]) {
+        for x in 0..self.width() {
+            let offset = usize::from(y) * usize::from(self.1) + usize::from(x);
+            buffers[0].push(self.0[offset + 0]);
+        }
     }
 }
 
@@ -134,13 +137,15 @@ macro_rules! ycbcr_image {
             }
 
             #[inline(always)]
-            fn fill_buffers(&self, x: u16, y: u16, buffers: &mut [Vec<u8>; 4]) {
-                let offset = (usize::from(y) * usize::from(self.1) + usize::from(x)) * $num_colors;
-                let (y, cb, cr) = rgb_to_ycbcr(self.0[offset + $o1], self.0[offset + $o2], self.0[offset + $o3]);
+            fn fill_buffers(&self, y: u16, buffers: &mut [Vec<u8>; 4]) {
+                for x in 0..self.width() {
+                    let offset = (usize::from(y) * usize::from(self.1) + usize::from(x)) * $num_colors;
+                    let (y, cb, cr) = rgb_to_ycbcr(self.0[offset + $o1], self.0[offset + $o2], self.0[offset + $o3]);
 
-                buffers[0].push(y);
-                buffers[1].push(cb);
-                buffers[2].push(cr);
+                    buffers[0].push(y);
+                    buffers[1].push(cb);
+                    buffers[2].push(cr);
+                }
             }
         }
     }
@@ -166,12 +171,14 @@ impl<'a> ImageBuffer for YCbCrImage<'a> {
         self.2
     }
 
-    fn fill_buffers(&self, x: u16, y: u16, buffers: &mut [Vec<u8>; 4]) {
-        let offset = (usize::from(y) * usize::from(self.1) + usize::from(x)) * 3;
+    fn fill_buffers(&self, y: u16, buffers: &mut [Vec<u8>; 4]) {
+        for x in 0..self.width() {
+            let offset = (usize::from(y) * usize::from(self.1) + usize::from(x)) * 3;
 
-        buffers[0].push(self.0[offset + 0]);
-        buffers[1].push(self.0[offset + 1]);
-        buffers[2].push(self.0[offset + 2]);
+            buffers[0].push(self.0[offset + 0]);
+            buffers[1].push(self.0[offset + 1]);
+            buffers[2].push(self.0[offset + 2]);
+        }
     }
 }
 
@@ -190,13 +197,15 @@ impl<'a> ImageBuffer for CmykImage<'a> {
         self.2
     }
 
-    fn fill_buffers(&self, x: u16, y: u16, buffers: &mut [Vec<u8>; 4]) {
-        let offset = (usize::from(y) * usize::from(self.1) + usize::from(x)) * 4;
+    fn fill_buffers(&self, y: u16, buffers: &mut [Vec<u8>; 4]) {
+        for x in 0..self.width() {
+            let offset = (usize::from(y) * usize::from(self.1) + usize::from(x)) * 4;
 
-        buffers[0].push(255 - self.0[offset + 0]);
-        buffers[1].push(255 - self.0[offset + 1]);
-        buffers[2].push(255 - self.0[offset + 2]);
-        buffers[3].push(255 - self.0[offset + 3]);
+            buffers[0].push(255 - self.0[offset + 0]);
+            buffers[1].push(255 - self.0[offset + 1]);
+            buffers[2].push(255 - self.0[offset + 2]);
+            buffers[3].push(255 - self.0[offset + 3]);
+        }
     }
 }
 
@@ -215,19 +224,21 @@ impl<'a> ImageBuffer for CmykAsYcckImage<'a> {
         self.2
     }
 
-    fn fill_buffers(&self, x: u16, y: u16, buffers: &mut [Vec<u8>; 4]) {
-        let offset = (usize::from(y) * usize::from(self.1) + usize::from(x)) * 4;
+    fn fill_buffers(&self, y: u16, buffers: &mut [Vec<u8>; 4]) {
+        for x in 0..self.width() {
+            let offset = (usize::from(y) * usize::from(self.1) + usize::from(x)) * 4;
 
-        let (y, cb, cr, k) = cmyk_to_ycck(
-            self.0[offset + 0],
-            self.0[offset + 1],
-            self.0[offset + 2],
-            self.0[offset + 3]);
+            let (y, cb, cr, k) = cmyk_to_ycck(
+                self.0[offset + 0],
+                self.0[offset + 1],
+                self.0[offset + 2],
+                self.0[offset + 3]);
 
-        buffers[0].push(y);
-        buffers[1].push(cb);
-        buffers[2].push(cr);
-        buffers[3].push(k);
+            buffers[0].push(y);
+            buffers[1].push(cb);
+            buffers[2].push(cr);
+            buffers[3].push(k);
+        }
     }
 }
 
@@ -246,13 +257,15 @@ impl<'a> ImageBuffer for YcckImage<'a> {
         self.2
     }
 
-    fn fill_buffers(&self, x: u16, y: u16, buffers: &mut [Vec<u8>; 4]) {
-        let offset = (usize::from(y) * usize::from(self.1) + usize::from(x)) * 4;
+    fn fill_buffers(&self, y: u16, buffers: &mut [Vec<u8>; 4]) {
+        for x in 0..self.width() {
+            let offset = (usize::from(y) * usize::from(self.1) + usize::from(x)) * 4;
 
-        buffers[0].push(self.0[offset + 0]);
-        buffers[1].push(self.0[offset + 1]);
-        buffers[2].push(self.0[offset + 2]);
-        buffers[3].push(self.0[offset + 3]);
+            buffers[0].push(self.0[offset + 0]);
+            buffers[1].push(self.0[offset + 1]);
+            buffers[2].push(self.0[offset + 2]);
+            buffers[3].push(self.0[offset + 3]);
+        }
     }
 }
 

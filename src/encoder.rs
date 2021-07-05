@@ -598,11 +598,14 @@ impl<W: Write> Encoder<W> {
                 let y = y + block_y * 8 * max_v_sampling;
                 let y = (y.min(height as usize - 1)) as u16;
 
-                for x in 0..image.width() {
-                    image.fill_buffers(x, y, &mut row);
-                }
+                image.fill_buffers(y, &mut row);
+
                 for _ in usize::from(width)..buffer_width {
-                    image.fill_buffers(width - 1, y, &mut row);
+                    for channel in &mut row {
+                        if !channel.is_empty() {
+                            channel.push(channel[channel.len() - 1]);
+                        }
+                    }
                 }
             }
 
@@ -843,11 +846,14 @@ impl<W: Write> Encoder<W> {
         for y in 0..num_rows * 8 {
             let y = (y.min(usize::from(height) - 1)) as u16;
 
-            for x in 0..width {
-                image.fill_buffers(x, y, &mut row);
-            }
+            image.fill_buffers(y, &mut row);
+
             for _ in usize::from(width)..num_cols * 8 {
-                image.fill_buffers(width - 1, y, &mut row);
+                for channel in &mut row {
+                    if !channel.is_empty() {
+                        channel.push(channel[channel.len() - 1]);
+                    }
+                }
             }
         }
 
