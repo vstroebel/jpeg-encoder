@@ -34,12 +34,13 @@ mod error;
 pub use writer::Density;
 pub use encoder::{ColorType, JpegColorType, SamplingFactor, Encoder};
 pub use error::EncodingError;
+pub use quantization::QuantizationTableType;
 pub use image_buffer::{ImageBuffer, rgb_to_ycbcr, cmyk_to_ycck};
 
 
 #[cfg(test)]
 mod tests {
-    use crate::{Encoder, ColorType, SamplingFactor};
+    use crate::{Encoder, ColorType, SamplingFactor, QuantizationTableType};
     use jpeg_decoder::{Decoder, PixelFormat, ImageInfo};
     use crate::image_buffer::rgb_to_ycbcr;
 
@@ -142,6 +143,31 @@ mod tests {
 
         let mut result = Vec::new();
         let encoder = Encoder::new(&mut result, 80);
+        encoder.encode(&data, width, height, ColorType::Rgb).unwrap();
+
+        check_result(data, width, height, &mut result, PixelFormat::RGB24);
+    }
+
+    #[test]
+    fn test_rgb_custom_q_table() {
+        let (data, width, height) = create_test_img_rgb();
+
+        let mut result = Vec::new();
+        let mut encoder = Encoder::new(&mut result, 100);
+
+        let table = QuantizationTableType::Custom(Box::new([
+            1, 1, 1, 1, 1, 1, 1, 1,
+            1, 1, 1, 1, 1, 1, 1, 1,
+            1, 1, 1, 1, 1, 1, 1, 1,
+            1, 1, 1, 1, 1, 1, 1, 1,
+            1, 1, 1, 1, 1, 1, 1, 1,
+            1, 1, 1, 1, 1, 1, 1, 1,
+            1, 1, 1, 1, 1, 1, 1, 1,
+            1, 1, 1, 1, 1, 1, 1, 1,
+        ]));
+
+        encoder.set_quantization_tables(table.clone(), table);
+
         encoder.encode(&data, width, height, ColorType::Rgb).unwrap();
 
         check_result(data, width, height, &mut result, PixelFormat::RGB24);

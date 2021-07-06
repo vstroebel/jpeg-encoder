@@ -3,7 +3,7 @@ use crate::fdct::fdct;
 use crate::marker::Marker;
 use crate::huffman::{HuffmanTable, CodingClass};
 use crate::image_buffer::*;
-use crate::quantization::QuantizationTable;
+use crate::quantization::{QuantizationTable, QuantizationTableType};
 use crate::{Density, EncodingError};
 
 use std::io::{Write, BufWriter};
@@ -184,9 +184,10 @@ macro_rules! add_component {
 pub struct Encoder<W: Write> {
     writer: JfifWriter<W>,
     density: Density,
+    quality: u8,
 
     components: Vec<Component>,
-    quantization_tables: [QuantizationTable; 2],
+    quantization_tables: [QuantizationTableType; 2],
     huffman_tables: [(HuffmanTable, HuffmanTable); 2],
 
     sampling_factor: SamplingFactor,
@@ -213,8 +214,8 @@ impl<W: Write> Encoder<W> {
         ];
 
         let quantization_tables = [
-            QuantizationTable::default_luma(quality),
-            QuantizationTable::default_chroma(quality)
+            QuantizationTableType::Default,
+            QuantizationTableType::Default,
         ];
 
         let sampling_factor = if quality < 90 {
@@ -226,6 +227,7 @@ impl<W: Write> Encoder<W> {
         Encoder {
             writer: JfifWriter::new(w),
             density: Density::None,
+            quality,
             components: vec![],
             quantization_tables,
             huffman_tables,
@@ -257,6 +259,16 @@ impl<W: Write> Encoder<W> {
     /// Get chroma subsampling factor
     pub fn sampling_factor(&self) -> SamplingFactor {
         self.sampling_factor
+    }
+
+    /// Set quantization tables for luma and chroma components
+    pub fn set_quantization_tables(&mut self, luma: QuantizationTableType, chroma: QuantizationTableType) {
+        self.quantization_tables = [luma, chroma];
+    }
+
+    /// Get configured quantization tables
+    pub fn quantization_tables(&self) -> &[QuantizationTableType; 2] {
+        &self.quantization_tables
     }
 
     /// Controls if progressive encoding is used.
@@ -407,6 +419,11 @@ impl<W: Write> Encoder<W> {
             });
         }
 
+        let q_tables = [
+            QuantizationTable::new_with_quality(&self.quantization_tables[0], self.quality, true),
+            QuantizationTable::new_with_quality(&self.quantization_tables[1], self.quality, false),
+        ];
+
         let jpeg_color_type = image.get_jpeg_color_type();
         self.init_components(jpeg_color_type);
 
@@ -429,11 +446,11 @@ impl<W: Write> Encoder<W> {
         }
 
         if let Some(scans) = self.progressive_scans {
-            self.encode_image_progressive(image, scans)?;
+            self.encode_image_progressive(image, scans, &q_tables)?;
         } else if self.optimize_huffman_table || !self.sampling_factor.supports_interleaved() {
-            self.encode_image_sequential(image)?;
+            self.encode_image_sequential(image, &q_tables)?;
         } else {
-            self.encode_image_interleaved(image)?;
+            self.encode_image_interleaved(image, &q_tables)?;
         }
 
         self.writer.write_marker(Marker::EOI)?;
@@ -480,11 +497,11 @@ impl<W: Write> Encoder<W> {
         (usize::from(max_h_sampling), usize::from(max_v_sampling))
     }
 
-    fn write_frame_header<I: ImageBuffer>(&mut self, image: &I) -> Result<(), EncodingError> {
+    fn write_frame_header<I: ImageBuffer>(&mut self, image: &I, q_tables: &[QuantizationTable; 2]) -> Result<(), EncodingError> {
         self.writer.write_frame_header(image.width() as u16, image.height() as u16, &self.components, self.progressive_scans.is_some())?;
 
-        self.writer.write_quantization_segment(0, &self.quantization_tables[0])?;
-        self.writer.write_quantization_segment(1, &self.quantization_tables[1])?;
+        self.writer.write_quantization_segment(0, &q_tables[0])?;
+        self.writer.write_quantization_segment(1, &q_tables[1])?;
 
         self.writer.write_huffman_segment(
             CodingClass::Dc,
@@ -547,10 +564,10 @@ impl<W: Write> Encoder<W> {
         }
     }
 
-    fn quantize_block(&self, component: &Component, block: &[i16; 64]) -> [i16; 64] {
+    fn quantize_block(&self, component: &Component, block: &[i16; 64], q_tables: &[QuantizationTable; 2]) -> [i16; 64] {
         let mut q_block = [0i16; 64];
 
-        let table = &self.quantization_tables[component.quantization_table as usize];
+        let table = &q_tables[component.quantization_table as usize];
 
         for i in 0..64 {
             let z = ZIGZAG[i] as usize;
@@ -566,8 +583,9 @@ impl<W: Write> Encoder<W> {
     fn encode_image_interleaved<I: ImageBuffer>(
         &mut self,
         image: I,
+        q_tables: &[QuantizationTable; 2],
     ) -> Result<(), EncodingError> {
-        self.write_frame_header(&image)?;
+        self.write_frame_header(&image, q_tables)?;
         self.writer.write_scan_header(&self.components.iter().collect::<Vec<_>>(), None)?;
 
         let (max_h_sampling, max_v_sampling) = self.get_max_sampling_size();
@@ -634,7 +652,7 @@ impl<W: Write> Encoder<W> {
 
                             fdct(&mut block);
 
-                            let q_block = self.quantize_block(&component, &block);
+                            let q_block = self.quantize_block(&component, &block, q_tables);
 
                             self.writer.write_block(
                                 &q_block,
@@ -668,14 +686,15 @@ impl<W: Write> Encoder<W> {
     fn encode_image_sequential<I: ImageBuffer>(
         &mut self,
         image: I,
+        q_tables: &[QuantizationTable; 2],
     ) -> Result<(), EncodingError> {
-        let blocks = self.encode_blocks(&image);
+        let blocks = self.encode_blocks(&image, q_tables);
 
         if self.optimize_huffman_table {
             self.optimize_huffman_table(&blocks);
         }
 
-        self.write_frame_header(&image)?;
+        self.write_frame_header(&image, q_tables)?;
 
         for (i, component) in self.components.iter().enumerate() {
             let restart_interval = self.restart_interval.unwrap_or(0);
@@ -726,14 +745,15 @@ impl<W: Write> Encoder<W> {
         &mut self,
         image: I,
         scans: u8,
+        q_tables: &[QuantizationTable; 2],
     ) -> Result<(), EncodingError> {
-        let blocks = self.encode_blocks(&image);
+        let blocks = self.encode_blocks(&image, q_tables);
 
         if self.optimize_huffman_table {
             self.optimize_huffman_table(&blocks);
         }
 
-        self.write_frame_header(&image)?;
+        self.write_frame_header(&image, q_tables)?;
 
         // Phase 1: DC Scan
         //          Only the DC coefficients can be transfer in the first component scans
@@ -826,7 +846,7 @@ impl<W: Write> Encoder<W> {
         Ok(())
     }
 
-    fn encode_blocks<I: ImageBuffer>(&mut self, image: &I) -> [Vec<[i16; 64]>; 4] {
+    fn encode_blocks<I: ImageBuffer>(&mut self, image: &I, q_tables: &[QuantizationTable; 2]) -> [Vec<[i16; 64]>; 4] {
         let width = image.width();
         let height = image.height();
 
@@ -881,7 +901,7 @@ impl<W: Write> Encoder<W> {
 
                     fdct(&mut block);
 
-                    let q_block = self.quantize_block(&component, &block);
+                    let q_block = self.quantize_block(&component, &block, q_tables);
 
                     blocks[i].push(q_block);
                 }
