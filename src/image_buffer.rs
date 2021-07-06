@@ -40,7 +40,7 @@ pub fn cmyk_to_ycck(c: u8, m: u8, y: u8, k: u8) -> (u8, u8, u8, u8) {
 ///
 /// Image encoding with [Encoder::encode_image](crate::Encoder::encode_image) needs an ImageBuffer
 /// as input for the image data. For convenience the [Encoder::encode](crate::Encoder::encode)
-/// function contains implementaions for common byte based pixel formats.
+/// function contains implementations for common byte based pixel formats.
 /// Users that needs other pixel formats or don't have the data available as byte slices
 /// can create their own buffer implementations.
 ///
