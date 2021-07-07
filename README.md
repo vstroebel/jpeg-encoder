@@ -13,6 +13,7 @@ JPEG encoder written in Rust
 - Optimized huffman tables
 - 1, 3 and 4 component colorspaces
 - Restart interval
+- Custom quantization tables
 
 ## Example
 ```rust
