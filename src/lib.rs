@@ -30,6 +30,8 @@ mod quantization;
 mod image_buffer;
 mod encoder;
 mod error;
+#[cfg(all(feature = "simd", any(target_arch = "x86", target_arch = "x86_64")))]
+mod avx;
 
 pub use writer::Density;
 pub use encoder::{ColorType, JpegColorType, SamplingFactor, Encoder};

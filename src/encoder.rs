@@ -392,9 +392,35 @@ impl<W: Write> Encoder<W> {
             return Err(EncodingError::BadImageData { length: data.len(), required: required_data_len });
         }
 
+        #[cfg(all(feature = "simd", any(target_arch = "x86", target_arch = "x86_64")))]
+            {
+                if is_x86_feature_detected!("avx2") {
+                    use crate::avx::*;
+
+                    match color_type {
+                        ColorType::Rgb => return self.encode_image(RgbImageAVX2(data, width, height)),
+                        ColorType::Rgba => return self.encode_image(RgbaImageAVX2(data, width, height)),
+                        ColorType::Bgr => return self.encode_image(BgrImageAVX2(data, width, height)),
+                        ColorType::Bgra => return self.encode_image(BgraImageAVX2(data, width, height)),
+                        _ => {
+                            // Fallthrough to unoptimized version
+                        }
+                    }
+                }
+            }
+
+
         match color_type {
             ColorType::Luma => self.encode_image(GrayImage(data, width, height))?,
-            ColorType::Rgb => self.encode_image(RgbImage(data, width, height))?,
+            ColorType::Rgb => {
+                /*#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+                    {
+                        if is_x86_feature_detected!("avx2") {
+                            return self.encode_image(RgbImageAVX2(data, width, height));
+                        }
+                    }*/
+                self.encode_image(RgbImage(data, width, height))?;
+            }
             ColorType::Rgba => self.encode_image(RgbaImage(data, width, height))?,
             ColorType::Bgr => self.encode_image(BgrImage(data, width, height))?,
             ColorType::Bgra => self.encode_image(BgraImage(data, width, height))?,
