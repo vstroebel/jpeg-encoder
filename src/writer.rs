@@ -376,14 +376,9 @@ impl<W: Write> JfifWriter<W> {
 pub(crate) fn get_code(value: i16) -> (u8, u16) {
     let sign = value >> 15;
     let temp = value + sign;
-    let mut temp2 = (sign ^ temp) as u16;
+    let temp2 = (sign ^ temp) as u16;
 
-    let mut num_bits = 0;
-
-    while temp2 > 0 {
-        num_bits += 1;
-        temp2 >>= 1;
-    }
+    let num_bits = 16 - temp2.leading_zeros() as u16;
 
     let coefficient = temp & ((1 << num_bits as usize) - 1);
 
