@@ -597,19 +597,6 @@ impl<W: Write> Encoder<W> {
         }
     }
 
-    fn quantize_block(&self, component: &Component, block: &[i16; 64], q_tables: &[QuantizationTable; 2]) -> [i16; 64] {
-        let mut q_block = [0i16; 64];
-
-        let table = &q_tables[component.quantization_table as usize];
-
-        for i in 0..64 {
-            let z = ZIGZAG[i] as usize;
-            q_block[i] = table.quantize(block[z], z);
-        }
-
-        q_block
-    }
-
     /// Encode all components with one scan
     ///
     /// This is only valid for sampling factors of 1 and 2
@@ -685,7 +672,9 @@ impl<W: Write> Encoder<W> {
 
                             OP::fdct(&mut block);
 
-                            let q_block = self.quantize_block(&component, &block, q_tables);
+                            let mut q_block = [0i16; 64];
+
+                            OP::quantize_block(&block, &mut q_block, &q_tables[component.quantization_table as usize]);
 
                             self.writer.write_block(
                                 &q_block,
@@ -934,7 +923,9 @@ impl<W: Write> Encoder<W> {
 
                     OP::fdct(&mut block);
 
-                    let q_block = self.quantize_block(&component, &block, q_tables);
+                    let mut q_block = [0i16; 64];
+
+                    OP::quantize_block(&block, &mut q_block, &q_tables[component.quantization_table as usize]);
 
                     blocks[i].push(q_block);
                 }
@@ -1141,17 +1132,23 @@ fn get_num_bits(mut value: i16) -> u8 {
 }
 
 pub(crate) trait Operations {
-    fn fdct(data: &mut [i16; 64]);
-}
-
-pub(crate) struct DefaultOperations;
-
-impl Operations for DefaultOperations {
     #[inline(always)]
     fn fdct(data: &mut [i16; 64]) {
         fdct(data)
     }
+
+    #[inline(always)]
+    fn quantize_block(block: &[i16; 64], q_block: &mut [i16; 64], table: &QuantizationTable) {
+        for i in 0..64 {
+            let z = ZIGZAG[i] as usize;
+            q_block[i] = table.quantize(block[z], z);
+        }
+    }
 }
+
+pub(crate) struct DefaultOperations;
+
+impl Operations for DefaultOperations {}
 
 #[cfg(test)]
 mod tests {

@@ -1,3 +1,7 @@
+#[cfg(target_arch = "x86")]
+use std::arch::x64::{__m256i, _mm256_unpacklo_epi16, _mm256_unpackhi_epi16, _mm256_unpacklo_epi32, _mm256_unpackhi_epi32, _mm256_permute4x64_epi64, _mm256_sub_epi16, _mm256_add_epi16, _mm256_permute2x128_si256, _mm256_sign_epi16, _mm256_slli_epi16, _mm256_set_epi32, _mm256_madd_epi16, _mm256_add_epi32, _mm256_srai_epi32, _mm256_packs_epi32, _mm256_set_epi16, _mm256_loadu_si256, _mm256_storeu_si256, _mm256_srai_epi16};
+
+#[cfg(target_arch = "x86_64")]
 use std::arch::x86_64::{__m256i, _mm256_unpacklo_epi16, _mm256_unpackhi_epi16, _mm256_unpacklo_epi32, _mm256_unpackhi_epi32, _mm256_permute4x64_epi64, _mm256_sub_epi16, _mm256_add_epi16, _mm256_permute2x128_si256, _mm256_sign_epi16, _mm256_slli_epi16, _mm256_set_epi32, _mm256_madd_epi16, _mm256_add_epi32, _mm256_srai_epi32, _mm256_packs_epi32, _mm256_set_epi16, _mm256_loadu_si256, _mm256_storeu_si256, _mm256_srai_epi16};
 
 const CONST_BITS: i32 = 13;
@@ -40,7 +44,6 @@ pub fn fdct_avx2(data: &mut [i16; 64]) {
 
 #[target_feature(enable = "avx2")]
 unsafe fn fdct_avx2_internal(data: &mut [i16; 64]) {
-
     #[allow(non_snake_case)]
     #[inline(always)]
     unsafe fn PW_F130_F054_MF130_F054() -> __m256i {
@@ -324,8 +327,6 @@ unsafe fn fdct_avx2_internal(data: &mut [i16; 64]) {
 
         (t1, t2, t3, t4)
     }
-
-
 
     let in_data = std::mem::transmute(data.as_mut_ptr());
 
