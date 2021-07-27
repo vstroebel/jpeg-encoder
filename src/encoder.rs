@@ -395,7 +395,7 @@ impl<W: Write> Encoder<W> {
         #[cfg(all(feature = "simd", any(target_arch = "x86", target_arch = "x86_64")))]
             {
                 if is_x86_feature_detected!("avx2") {
-                    use crate::avx::*;
+                    use crate::avx2::*;
 
                     match color_type {
                         ColorType::Rgb => return self.encode_image(RgbImageAVX2(data, width, height)),

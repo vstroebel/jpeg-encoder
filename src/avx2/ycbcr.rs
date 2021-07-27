@@ -26,11 +26,11 @@ macro_rules! ycbcr_image_avx2 {
                         *data.offset(7 * $num_colors) as i32)
                  }
 
-                let mut y_buffer = buffers[0].as_mut_ptr().offset(buffers[0].len() as isize);
+                let mut y_buffer = buffers[0].as_mut_ptr().add(buffers[0].len());
                 buffers[0].set_len(buffers[0].len() + self.width() as usize);
-                let mut cb_buffer = buffers[1].as_mut_ptr().offset(buffers[1].len() as isize);
+                let mut cb_buffer = buffers[1].as_mut_ptr().add(buffers[1].len());
                 buffers[1].set_len(buffers[1].len() + self.width() as usize);
-                let mut cr_buffer = buffers[2].as_mut_ptr().offset(buffers[2].len() as isize);
+                let mut cr_buffer = buffers[2].as_mut_ptr().add(buffers[2].len());
                 buffers[2].set_len(buffers[2].len() + self.width() as usize);
 
                 let ymulr = _mm256_set1_epi32(19595);
@@ -52,7 +52,7 @@ macro_rules! ycbcr_image_avx2 {
                     let g = load3(data.offset($o2));
                     let b = load3(data.offset($o3));
 
-                    data = data.offset($num_colors * 8);
+                    data = data.add($num_colors * 8);
 
                     let yr = _mm256_mullo_epi32(ymulr, r);
                     let yg = _mm256_mullo_epi32(ymulg, g);
@@ -102,7 +102,7 @@ macro_rules! ycbcr_image_avx2 {
                 for _ in 0..self.width() % 8 {
                     let (y, cb, cr) = rgb_to_ycbcr(*data.offset($o1), *data.offset($o2), *data.offset($o3));
 
-                    data = data.offset($num_colors);
+                    data = data.add($num_colors);
 
                     *y_buffer = y;
                     y_buffer = y_buffer.offset(1);
