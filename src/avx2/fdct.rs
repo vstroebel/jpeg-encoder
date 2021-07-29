@@ -245,8 +245,8 @@ unsafe fn fdct_avx2_internal(data: &mut [i16; 64]) {
         let t2 = _mm256_add_epi32(t2, PD_DESCALE_P(first_pass));
         let t6 = _mm256_add_epi32(t6, PD_DESCALE_P(first_pass));
 
-        let t2 = _mm256_srai_epi32(t2, if first_pass { DESCALE_P1 } else { DESCALE_P2 });
-        let t6 = _mm256_srai_epi32(t6, if first_pass { DESCALE_P1 } else { DESCALE_P2 });
+        let t2 = if first_pass { _mm256_srai_epi32(t2, DESCALE_P1) } else { _mm256_srai_epi32(t2, DESCALE_P2) };
+        let t6 = if first_pass { _mm256_srai_epi32(t6, DESCALE_P1) } else { _mm256_srai_epi32(t6, DESCALE_P2) };
 
         let t3 = _mm256_packs_epi32(t2, t6); // t6 = data2_6
 
@@ -309,8 +309,8 @@ unsafe fn fdct_avx2_internal(data: &mut [i16; 64]) {
         let t2 = _mm256_add_epi32(t2, PD_DESCALE_P(first_pass));
         let t4 = _mm256_add_epi32(t4, PD_DESCALE_P(first_pass));
 
-        let t2 = _mm256_srai_epi32(t2, if first_pass { DESCALE_P1 } else { DESCALE_P2 });
-        let t4 = _mm256_srai_epi32(t4, if first_pass { DESCALE_P1 } else { DESCALE_P2 });
+        let t2 = if first_pass { _mm256_srai_epi32(t2, DESCALE_P1) } else { _mm256_srai_epi32(t2, DESCALE_P2) };
+        let t4 = if first_pass { _mm256_srai_epi32(t4, DESCALE_P1) } else { _mm256_srai_epi32(t4, DESCALE_P2) };
 
         let t4 = _mm256_packs_epi32(t2, t4); // t4 = data7_5
 
@@ -329,8 +329,8 @@ unsafe fn fdct_avx2_internal(data: &mut [i16; 64]) {
         let t8 = _mm256_add_epi32(t8, PD_DESCALE_P(first_pass));
         let t5 = _mm256_add_epi32(t5, PD_DESCALE_P(first_pass));
 
-        let t8 = _mm256_srai_epi32(t8, if first_pass { DESCALE_P1 } else { DESCALE_P2 });
-        let t5 = _mm256_srai_epi32(t5, if first_pass { DESCALE_P1 } else { DESCALE_P2 });
+        let t8 = if first_pass { _mm256_srai_epi32(t8, DESCALE_P1) } else { _mm256_srai_epi32(t8, DESCALE_P2) };
+        let t5 = if first_pass { _mm256_srai_epi32(t5, DESCALE_P1) } else { _mm256_srai_epi32(t5, DESCALE_P2) };
 
         let t2 = _mm256_packs_epi32(t8, t5); // t2 = data3_1
 
