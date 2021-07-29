@@ -92,7 +92,6 @@ fn criterion_benchmark(c: &mut Criterion) {
         black_box(height),
     )));
 
-
     group.finish();
 }
 

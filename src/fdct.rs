@@ -103,6 +103,7 @@ fn into_el(v: i32) -> i16 {
 #[allow(clippy::erasing_op)]
 #[allow(clippy::identity_op)]
 pub(crate) fn fdct(data: &mut [i16; 64]) {
+
     /* Pass 1: process rows. */
     /* Note results are scaled up by sqrt(8) compared to a true DCT; */
     /* furthermore, we scale the results by 2**PASS1_BITS. */

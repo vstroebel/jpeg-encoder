@@ -392,6 +392,25 @@ impl<W: Write> Encoder<W> {
             return Err(EncodingError::BadImageData { length: data.len(), required: required_data_len });
         }
 
+        #[cfg(all(feature = "simd", any(target_arch = "x86", target_arch = "x86_64")))]
+            {
+                if is_x86_feature_detected!("avx2") {
+                    use crate::avx2::*;
+
+                    return match color_type {
+                        ColorType::Luma => self.encode_image_internal::<_, AVX2Operations>(GrayImage(data, width, height)),
+                        ColorType::Rgb => self.encode_image_internal::<_, AVX2Operations>(RgbImageAVX2(data, width, height)),
+                        ColorType::Rgba => self.encode_image_internal::<_, AVX2Operations>(RgbaImageAVX2(data, width, height)),
+                        ColorType::Bgr => self.encode_image_internal::<_, AVX2Operations>(BgrImageAVX2(data, width, height)),
+                        ColorType::Bgra => self.encode_image_internal::<_, AVX2Operations>(BgraImageAVX2(data, width, height)),
+                        ColorType::Ycbcr => self.encode_image_internal::<_, AVX2Operations>(YCbCrImage(data, width, height)),
+                        ColorType::Cmyk => self.encode_image_internal::<_, AVX2Operations>(CmykImage(data, width, height)),
+                        ColorType::CmykAsYcck => self.encode_image_internal::<_, AVX2Operations>(CmykAsYcckImage(data, width, height)),
+                        ColorType::Ycck => self.encode_image_internal::<_, AVX2Operations>(YcckImage(data, width, height)),
+                    };
+                }
+            }
+
         match color_type {
             ColorType::Luma => self.encode_image(GrayImage(data, width, height))?,
             ColorType::Rgb => self.encode_image(RgbImage(data, width, height))?,
@@ -409,6 +428,20 @@ impl<W: Write> Encoder<W> {
 
     /// Encode an image
     pub fn encode_image<I: ImageBuffer>(
+        self,
+        image: I,
+    ) -> Result<(), EncodingError> {
+        #[cfg(all(feature = "simd", any(target_arch = "x86", target_arch = "x86_64")))]
+            {
+                if is_x86_feature_detected!("avx2") {
+                    use crate::avx2::*;
+                    return self.encode_image_internal::<_, AVX2Operations>(image);
+                }
+            }
+        self.encode_image_internal::<_, DefaultOperations>(image)
+    }
+
+    fn encode_image_internal<I: ImageBuffer, OP: Operations>(
         mut self,
         image: I,
     ) -> Result<(), EncodingError> {
@@ -446,11 +479,11 @@ impl<W: Write> Encoder<W> {
         }
 
         if let Some(scans) = self.progressive_scans {
-            self.encode_image_progressive(image, scans, &q_tables)?;
+            self.encode_image_progressive::<_, OP>(image, scans, &q_tables)?;
         } else if self.optimize_huffman_table || !self.sampling_factor.supports_interleaved() {
-            self.encode_image_sequential(image, &q_tables)?;
+            self.encode_image_sequential::<_, OP>(image, &q_tables)?;
         } else {
-            self.encode_image_interleaved(image, &q_tables)?;
+            self.encode_image_interleaved::<_, OP>(image, &q_tables)?;
         }
 
         self.writer.write_marker(Marker::EOI)?;
@@ -564,23 +597,10 @@ impl<W: Write> Encoder<W> {
         }
     }
 
-    fn quantize_block(&self, component: &Component, block: &[i16; 64], q_tables: &[QuantizationTable; 2]) -> [i16; 64] {
-        let mut q_block = [0i16; 64];
-
-        let table = &q_tables[component.quantization_table as usize];
-
-        for i in 0..64 {
-            let z = ZIGZAG[i] as usize;
-            q_block[i] = table.quantize(block[z], z);
-        }
-
-        q_block
-    }
-
     /// Encode all components with one scan
     ///
     /// This is only valid for sampling factors of 1 and 2
-    fn encode_image_interleaved<I: ImageBuffer>(
+    fn encode_image_interleaved<I: ImageBuffer, OP: Operations>(
         &mut self,
         image: I,
         q_tables: &[QuantizationTable; 2],
@@ -650,9 +670,11 @@ impl<W: Write> Encoder<W> {
                                 buffer_width);
 
 
-                            fdct(&mut block);
+                            OP::fdct(&mut block);
 
-                            let q_block = self.quantize_block(&component, &block, q_tables);
+                            let mut q_block = [0i16; 64];
+
+                            OP::quantize_block(&block, &mut q_block, &q_tables[component.quantization_table as usize]);
 
                             self.writer.write_block(
                                 &q_block,
@@ -683,12 +705,12 @@ impl<W: Write> Encoder<W> {
     }
 
     /// Encode components with one scan per component
-    fn encode_image_sequential<I: ImageBuffer>(
+    fn encode_image_sequential<I: ImageBuffer, OP: Operations>(
         &mut self,
         image: I,
         q_tables: &[QuantizationTable; 2],
     ) -> Result<(), EncodingError> {
-        let blocks = self.encode_blocks(&image, q_tables);
+        let blocks = self.encode_blocks::<_, OP>(&image, q_tables);
 
         if self.optimize_huffman_table {
             self.optimize_huffman_table(&blocks);
@@ -741,13 +763,13 @@ impl<W: Write> Encoder<W> {
     /// Encode image in progressive mode
     ///
     /// This only support spectral selection for now
-    fn encode_image_progressive<I: ImageBuffer>(
+    fn encode_image_progressive<I: ImageBuffer, OP: Operations>(
         &mut self,
         image: I,
         scans: u8,
         q_tables: &[QuantizationTable; 2],
     ) -> Result<(), EncodingError> {
-        let blocks = self.encode_blocks(&image, q_tables);
+        let blocks = self.encode_blocks::<_, OP>(&image, q_tables);
 
         if self.optimize_huffman_table {
             self.optimize_huffman_table(&blocks);
@@ -846,7 +868,7 @@ impl<W: Write> Encoder<W> {
         Ok(())
     }
 
-    fn encode_blocks<I: ImageBuffer>(&mut self, image: &I, q_tables: &[QuantizationTable; 2]) -> [Vec<[i16; 64]>; 4] {
+    fn encode_blocks<I: ImageBuffer, OP: Operations>(&mut self, image: &I, q_tables: &[QuantizationTable; 2]) -> [Vec<[i16; 64]>; 4] {
         let width = image.width();
         let height = image.height();
 
@@ -899,9 +921,11 @@ impl<W: Write> Encoder<W> {
                         v_scale,
                         buffer_width);
 
-                    fdct(&mut block);
+                    OP::fdct(&mut block);
 
-                    let q_block = self.quantize_block(&component, &block, q_tables);
+                    let mut q_block = [0i16; 64];
+
+                    OP::quantize_block(&block, &mut q_block, &q_tables[component.quantization_table as usize]);
 
                     blocks[i].push(q_block);
                 }
@@ -1106,6 +1130,25 @@ fn get_num_bits(mut value: i16) -> u8 {
 
     num_bits
 }
+
+pub(crate) trait Operations {
+    #[inline(always)]
+    fn fdct(data: &mut [i16; 64]) {
+        fdct(data)
+    }
+
+    #[inline(always)]
+    fn quantize_block(block: &[i16; 64], q_block: &mut [i16; 64], table: &QuantizationTable) {
+        for i in 0..64 {
+            let z = ZIGZAG[i] as usize;
+            q_block[i] = table.quantize(block[z], z);
+        }
+    }
+}
+
+pub(crate) struct DefaultOperations;
+
+impl Operations for DefaultOperations {}
 
 #[cfg(test)]
 mod tests {

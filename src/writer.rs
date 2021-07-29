@@ -239,36 +239,8 @@ impl<W: Write> JfifWriter<W> {
         dc_table: &HuffmanTable,
         ac_table: &HuffmanTable,
     ) -> IOResult<()> {
-        let mut zero_run = 0;
-
-        for (i, &value) in block.iter().enumerate() {
-            if i == 0 {
-                let diff = value - prev_dc;
-                let (size, value) = get_code(diff);
-
-                self.huffman_encode_value(size, size, value, dc_table)?;
-            } else if value == 0 {
-                zero_run += 1;
-            } else {
-                while zero_run > 15 {
-                    self.huffman_encode(0xF0, ac_table)?;
-                    zero_run -= 16;
-                }
-
-                let (size, value) = get_code(value);
-                let symbol = (zero_run << 4) | size;
-
-                self.huffman_encode_value(size, symbol, value, ac_table)?;
-
-                zero_run = 0;
-            }
-        }
-
-        if zero_run > 0 {
-            self.huffman_encode(0x00, ac_table)?;
-        }
-
-        Ok(())
+        self.write_dc(block[0], prev_dc, dc_table)?;
+        self.write_ac_block(block, 1, 64, ac_table)
     }
 
     pub fn write_dc(
@@ -376,14 +348,9 @@ impl<W: Write> JfifWriter<W> {
 pub(crate) fn get_code(value: i16) -> (u8, u16) {
     let sign = value >> 15;
     let temp = value + sign;
-    let mut temp2 = (sign ^ temp) as u16;
+    let temp2 = (sign ^ temp) as u16;
 
-    let mut num_bits = 0;
-
-    while temp2 > 0 {
-        num_bits += 1;
-        temp2 >>= 1;
-    }
+    let num_bits = 16 - temp2.leading_zeros() as u16;
 
     let coefficient = temp & ((1 << num_bits as usize) - 1);
 
