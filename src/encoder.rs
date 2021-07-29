@@ -736,7 +736,7 @@ impl<W: Write> Encoder<W> {
                 }
 
                 self.writer.write_block(
-                    &block,
+                    block,
                     prev_dc,
                     &self.huffman_tables[component.dc_huffman_table as usize].0,
                     &self.huffman_tables[component.ac_huffman_table as usize].1,
@@ -845,7 +845,7 @@ impl<W: Write> Encoder<W> {
                     }
 
                     self.writer.write_ac_block(
-                        &block,
+                        block,
                         start,
                         end,
                         &self.huffman_tables[component.ac_huffman_table as usize].1,
