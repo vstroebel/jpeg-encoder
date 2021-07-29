@@ -1,3 +1,12 @@
+/*
+ * Ported from mozjpeg / jfdctint-avx2.asm to rust
+ * Copyright 2009 Pierre Ossman <ossman@cendio.se> for Cendio AB
+ * Copyright (C) 2009, 2016, 2018, 2020, D. R. Commander.
+ *
+ * Based on the x86 SIMD extension for IJG JPEG library
+ * Copyright (C) 1999-2006, MIYASAKA Masaru.
+ */
+
 #[cfg(target_arch = "x86")]
 use std::arch::x64::{__m256i, _mm256_unpacklo_epi16, _mm256_unpackhi_epi16, _mm256_unpacklo_epi32, _mm256_unpackhi_epi32, _mm256_permute4x64_epi64, _mm256_sub_epi16, _mm256_add_epi16, _mm256_permute2x128_si256, _mm256_sign_epi16, _mm256_slli_epi16, _mm256_set_epi32, _mm256_madd_epi16, _mm256_add_epi32, _mm256_srai_epi32, _mm256_packs_epi32, _mm256_set_epi16, _mm256_loadu_si256, _mm256_storeu_si256, _mm256_srai_epi16};
 

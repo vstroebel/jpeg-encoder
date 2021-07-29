@@ -14,6 +14,7 @@ JPEG encoder written in Rust
 - 1, 3 and 4 component colorspaces
 - Restart interval
 - Custom quantization tables
+- AVX2 based optimizations (Optional)
 
 ## Example
 ```rust
