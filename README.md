@@ -14,6 +14,7 @@ A JPEG encoder written in Rust featuring:
 - Custom quantization tables
 - AVX2 based optimizations (Optional)
 - Support for no_std + alloc
+- No `unsafe` by default (Enabling the `simd` feature adds unsafe code)
 
 ## Example
 ```rust

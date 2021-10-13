@@ -23,6 +23,7 @@
 //! # }
 
 #![no_std]
+#![cfg_attr(not(feature = "simd"), forbid(unsafe_code))]
 
 #[cfg(feature = "std")]
 extern crate std;
