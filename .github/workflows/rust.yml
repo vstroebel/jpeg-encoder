@@ -29,3 +29,23 @@ jobs:
       run: cargo build --verbose --features simd
     - name: Run tests
       run: cargo test --verbose --features simd
+
+  no_std:
+
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        rust: [ "1.47", stable, nightly ]
+
+    steps:
+      - name: Installing Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          override: true
+          toolchain: ${{ matrix.rust }}
+      - uses: actions/checkout@v2
+      - name: Build
+        run: cargo build --verbose --no-default-features
+      - name: Run tests
+        run: cargo test --verbose --no-default-features --tests
