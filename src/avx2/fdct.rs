@@ -8,10 +8,22 @@
  */
 
 #[cfg(target_arch = "x86")]
-use core::arch::x64::{__m256i, _mm256_unpacklo_epi16, _mm256_unpackhi_epi16, _mm256_unpacklo_epi32, _mm256_unpackhi_epi32, _mm256_permute4x64_epi64, _mm256_sub_epi16, _mm256_add_epi16, _mm256_permute2x128_si256, _mm256_sign_epi16, _mm256_slli_epi16, _mm256_set_epi32, _mm256_madd_epi16, _mm256_add_epi32, _mm256_srai_epi32, _mm256_packs_epi32, _mm256_set_epi16, _mm256_loadu_si256, _mm256_storeu_si256, _mm256_srai_epi16};
+use core::arch::x64::{
+    __m256i, _mm256_add_epi16, _mm256_add_epi32, _mm256_loadu_si256, _mm256_madd_epi16,
+    _mm256_packs_epi32, _mm256_permute2x128_si256, _mm256_permute4x64_epi64, _mm256_set_epi16,
+    _mm256_set_epi32, _mm256_sign_epi16, _mm256_slli_epi16, _mm256_srai_epi16, _mm256_srai_epi32,
+    _mm256_storeu_si256, _mm256_sub_epi16, _mm256_unpackhi_epi16, _mm256_unpackhi_epi32,
+    _mm256_unpacklo_epi16, _mm256_unpacklo_epi32,
+};
 
 #[cfg(target_arch = "x86_64")]
-use core::arch::x86_64::{__m256i, _mm256_unpacklo_epi16, _mm256_unpackhi_epi16, _mm256_unpacklo_epi32, _mm256_unpackhi_epi32, _mm256_permute4x64_epi64, _mm256_sub_epi16, _mm256_add_epi16, _mm256_permute2x128_si256, _mm256_sign_epi16, _mm256_slli_epi16, _mm256_set_epi32, _mm256_madd_epi16, _mm256_add_epi32, _mm256_srai_epi32, _mm256_packs_epi32, _mm256_set_epi16, _mm256_loadu_si256, _mm256_storeu_si256, _mm256_srai_epi16};
+use core::arch::x86_64::{
+    __m256i, _mm256_add_epi16, _mm256_add_epi32, _mm256_loadu_si256, _mm256_madd_epi16,
+    _mm256_packs_epi32, _mm256_permute2x128_si256, _mm256_permute4x64_epi64, _mm256_set_epi16,
+    _mm256_set_epi32, _mm256_sign_epi16, _mm256_slli_epi16, _mm256_srai_epi16, _mm256_srai_epi32,
+    _mm256_storeu_si256, _mm256_sub_epi16, _mm256_unpackhi_epi16, _mm256_unpackhi_epi32,
+    _mm256_unpacklo_epi16, _mm256_unpacklo_epi32,
+};
 
 const CONST_BITS: i32 = 13;
 const PASS1_BITS: i32 = 2;
@@ -57,14 +69,22 @@ unsafe fn fdct_avx2_internal(data: &mut [i16; 64]) {
     #[inline(always)]
     unsafe fn PW_F130_F054_MF130_F054() -> __m256i {
         _mm256_set_epi16(
-            F_0_541, F_0_541 - F_1_847,
-            F_0_541, F_0_541 - F_1_847,
-            F_0_541, F_0_541 - F_1_847,
-            F_0_541, F_0_541 - F_1_847,
-            F_0_541, F_0_541 + F_0_765,
-            F_0_541, F_0_541 + F_0_765,
-            F_0_541, F_0_541 + F_0_765,
-            F_0_541, F_0_541 + F_0_765,
+            F_0_541,
+            F_0_541 - F_1_847,
+            F_0_541,
+            F_0_541 - F_1_847,
+            F_0_541,
+            F_0_541 - F_1_847,
+            F_0_541,
+            F_0_541 - F_1_847,
+            F_0_541,
+            F_0_541 + F_0_765,
+            F_0_541,
+            F_0_541 + F_0_765,
+            F_0_541,
+            F_0_541 + F_0_765,
+            F_0_541,
+            F_0_541 + F_0_765,
         )
     }
 
@@ -72,14 +92,22 @@ unsafe fn fdct_avx2_internal(data: &mut [i16; 64]) {
     #[inline(always)]
     unsafe fn PW_MF078_F117_F078_F117() -> __m256i {
         _mm256_set_epi16(
-            F_1_175, F_1_175 - F_0_390,
-            F_1_175, F_1_175 - F_0_390,
-            F_1_175, F_1_175 - F_0_390,
-            F_1_175, F_1_175 - F_0_390,
-            F_1_175, F_1_175 - F_1_961,
-            F_1_175, F_1_175 - F_1_961,
-            F_1_175, F_1_175 - F_1_961,
-            F_1_175, F_1_175 - F_1_961,
+            F_1_175,
+            F_1_175 - F_0_390,
+            F_1_175,
+            F_1_175 - F_0_390,
+            F_1_175,
+            F_1_175 - F_0_390,
+            F_1_175,
+            F_1_175 - F_0_390,
+            F_1_175,
+            F_1_175 - F_1_961,
+            F_1_175,
+            F_1_175 - F_1_961,
+            F_1_175,
+            F_1_175 - F_1_961,
+            F_1_175,
+            F_1_175 - F_1_961,
         )
     }
 
@@ -87,14 +115,22 @@ unsafe fn fdct_avx2_internal(data: &mut [i16; 64]) {
     #[inline(always)]
     unsafe fn PW_MF060_MF089_MF050_MF256() -> __m256i {
         _mm256_set_epi16(
-            -F_2_562, F_2_053 - F_2_562,
-            -F_2_562, F_2_053 - F_2_562,
-            -F_2_562, F_2_053 - F_2_562,
-            -F_2_562, F_2_053 - F_2_562,
-            -F_0_899, F_0_298 - F_0_899,
-            -F_0_899, F_0_298 - F_0_899,
-            -F_0_899, F_0_298 - F_0_899,
-            -F_0_899, F_0_298 - F_0_899,
+            -F_2_562,
+            F_2_053 - F_2_562,
+            -F_2_562,
+            F_2_053 - F_2_562,
+            -F_2_562,
+            F_2_053 - F_2_562,
+            -F_2_562,
+            F_2_053 - F_2_562,
+            -F_0_899,
+            F_0_298 - F_0_899,
+            -F_0_899,
+            F_0_298 - F_0_899,
+            -F_0_899,
+            F_0_298 - F_0_899,
+            -F_0_899,
+            F_0_298 - F_0_899,
         )
     }
 
@@ -102,14 +138,22 @@ unsafe fn fdct_avx2_internal(data: &mut [i16; 64]) {
     #[inline(always)]
     unsafe fn PW_F050_MF256_F060_MF089() -> __m256i {
         _mm256_set_epi16(
-            -F_0_899, F_1_501 - F_0_899,
-            -F_0_899, F_1_501 - F_0_899,
-            -F_0_899, F_1_501 - F_0_899,
-            -F_0_899, F_1_501 - F_0_899,
-            -F_2_562, F_3_072 - F_2_562,
-            -F_2_562, F_3_072 - F_2_562,
-            -F_2_562, F_3_072 - F_2_562,
-            -F_2_562, F_3_072 - F_2_562,
+            -F_0_899,
+            F_1_501 - F_0_899,
+            -F_0_899,
+            F_1_501 - F_0_899,
+            -F_0_899,
+            F_1_501 - F_0_899,
+            -F_0_899,
+            F_1_501 - F_0_899,
+            -F_2_562,
+            F_3_072 - F_2_562,
+            -F_2_562,
+            F_3_072 - F_2_562,
+            -F_2_562,
+            F_3_072 - F_2_562,
+            -F_2_562,
+            F_3_072 - F_2_562,
         )
     }
 
@@ -158,8 +202,12 @@ unsafe fn fdct_avx2_internal(data: &mut [i16; 64]) {
 
     // In-place 8x8x16-bit matrix transpose using AVX2 instructions
     #[inline(always)]
-    unsafe fn do_transpose(i1: __m256i, i2: __m256i, i3: __m256i, i4: __m256i) -> (__m256i, __m256i, __m256i, __m256i) {
-
+    unsafe fn do_transpose(
+        i1: __m256i,
+        i2: __m256i,
+        i3: __m256i,
+        i4: __m256i,
+    ) -> (__m256i, __m256i, __m256i, __m256i) {
         //i1=(00 01 02 03 04 05 06 07  40 41 42 43 44 45 46 47)
         //i2=(10 11 12 13 14 15 16 17  50 51 52 53 54 55 56 57)
         //i3=(20 21 22 23 24 25 26 27  60 61 62 63 64 65 66 67)
@@ -181,7 +229,6 @@ unsafe fn fdct_avx2_internal(data: &mut [i16; 64]) {
         let t3 = _mm256_unpacklo_epi32(t6, t8);
         let t4 = _mm256_unpackhi_epi32(t6, t8);
 
-
         // transpose coefficients(phase 2)
         // t5=(00 10 20 30 01 11 21 31  40 50 60 70 41 51 61 71)
         // t6=(02 12 22 32 03 13 23 33  42 52 62 72 43 53 63 73)
@@ -198,7 +245,13 @@ unsafe fn fdct_avx2_internal(data: &mut [i16; 64]) {
 
     // In-place 8x8x16-bit accurate integer forward DCT using AVX2 instructions
     #[inline(always)]
-    unsafe fn do_dct(first_pass: bool, i1: __m256i, i2: __m256i, i3: __m256i, i4: __m256i) -> (__m256i, __m256i, __m256i, __m256i) {
+    unsafe fn do_dct(
+        first_pass: bool,
+        i1: __m256i,
+        i2: __m256i,
+        i3: __m256i,
+        i4: __m256i,
+    ) -> (__m256i, __m256i, __m256i, __m256i) {
         let t5 = _mm256_sub_epi16(i1, i4); // data1_0 - data6_7 = tmp6_7
         let t6 = _mm256_add_epi16(i1, i4); // data1_0 + data6_7 = tmp1_0
         let t7 = _mm256_add_epi16(i2, i3); // data3_2 + data4_5 = tmp3_2
@@ -211,10 +264,9 @@ unsafe fn fdct_avx2_internal(data: &mut [i16; 64]) {
         let t6 = _mm256_sub_epi16(t6, t7); // t6 = tmp0_1 - tmp3_2 = tmp13_12
 
         let t7 = _mm256_permute2x128_si256(t1, t1, 0x01); // t7 = tmp11_10
-        let t1 = _mm256_sign_epi16(t1, _mm256_set_epi16(
-            -1, -1, -1, -1, -1, -1, -1, -1,
-            1, 1, 1, 1, 1, 1, 1, 1,
-        ),
+        let t1 = _mm256_sign_epi16(
+            t1,
+            _mm256_set_epi16(-1, -1, -1, -1, -1, -1, -1, -1, 1, 1, 1, 1, 1, 1, 1, 1),
         ); // tmp10_neg11
 
         let t7 = _mm256_add_epi16(t7, t1); // t7 = (tmp10 + tmp11)_(tmp10 - tmp11)
@@ -245,8 +297,16 @@ unsafe fn fdct_avx2_internal(data: &mut [i16; 64]) {
         let t2 = _mm256_add_epi32(t2, PD_DESCALE_P(first_pass));
         let t6 = _mm256_add_epi32(t6, PD_DESCALE_P(first_pass));
 
-        let t2 = if first_pass { _mm256_srai_epi32(t2, DESCALE_P1) } else { _mm256_srai_epi32(t2, DESCALE_P2) };
-        let t6 = if first_pass { _mm256_srai_epi32(t6, DESCALE_P1) } else { _mm256_srai_epi32(t6, DESCALE_P2) };
+        let t2 = if first_pass {
+            _mm256_srai_epi32(t2, DESCALE_P1)
+        } else {
+            _mm256_srai_epi32(t2, DESCALE_P2)
+        };
+        let t6 = if first_pass {
+            _mm256_srai_epi32(t6, DESCALE_P1)
+        } else {
+            _mm256_srai_epi32(t6, DESCALE_P2)
+        };
 
         let t3 = _mm256_packs_epi32(t2, t6); // t6 = data2_6
 
@@ -309,8 +369,16 @@ unsafe fn fdct_avx2_internal(data: &mut [i16; 64]) {
         let t2 = _mm256_add_epi32(t2, PD_DESCALE_P(first_pass));
         let t4 = _mm256_add_epi32(t4, PD_DESCALE_P(first_pass));
 
-        let t2 = if first_pass { _mm256_srai_epi32(t2, DESCALE_P1) } else { _mm256_srai_epi32(t2, DESCALE_P2) };
-        let t4 = if first_pass { _mm256_srai_epi32(t4, DESCALE_P1) } else { _mm256_srai_epi32(t4, DESCALE_P2) };
+        let t2 = if first_pass {
+            _mm256_srai_epi32(t2, DESCALE_P1)
+        } else {
+            _mm256_srai_epi32(t2, DESCALE_P2)
+        };
+        let t4 = if first_pass {
+            _mm256_srai_epi32(t4, DESCALE_P1)
+        } else {
+            _mm256_srai_epi32(t4, DESCALE_P2)
+        };
 
         let t4 = _mm256_packs_epi32(t2, t4); // t4 = data7_5
 
@@ -322,15 +390,22 @@ unsafe fn fdct_avx2_internal(data: &mut [i16; 64]) {
         let t8 = _mm256_madd_epi16(t8, PW_F050_MF256_F060_MF089()); // t8 = tmp6_7L
         let t5 = _mm256_madd_epi16(t5, PW_F050_MF256_F060_MF089()); // t5 = tmp6_7H
 
-
         let t8 = _mm256_add_epi32(t8, t6); // t8 = data3_1L
         let t5 = _mm256_add_epi32(t5, t7); // t5 = data3_1H
 
         let t8 = _mm256_add_epi32(t8, PD_DESCALE_P(first_pass));
         let t5 = _mm256_add_epi32(t5, PD_DESCALE_P(first_pass));
 
-        let t8 = if first_pass { _mm256_srai_epi32(t8, DESCALE_P1) } else { _mm256_srai_epi32(t8, DESCALE_P2) };
-        let t5 = if first_pass { _mm256_srai_epi32(t5, DESCALE_P1) } else { _mm256_srai_epi32(t5, DESCALE_P2) };
+        let t8 = if first_pass {
+            _mm256_srai_epi32(t8, DESCALE_P1)
+        } else {
+            _mm256_srai_epi32(t8, DESCALE_P2)
+        };
+        let t5 = if first_pass {
+            _mm256_srai_epi32(t5, DESCALE_P1)
+        } else {
+            _mm256_srai_epi32(t5, DESCALE_P2)
+        };
 
         let t2 = _mm256_packs_epi32(t8, t5); // t2 = data3_1
 

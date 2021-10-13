@@ -1,6 +1,6 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
-use jpeg_encoder::{Encoder, ColorType, SamplingFactor};
+use jpeg_encoder::{ColorType, Encoder, SamplingFactor};
 use std::time::Duration;
 
 fn create_bench_img() -> (Vec<u8>, u16, u16) {
@@ -57,40 +57,60 @@ fn criterion_benchmark(c: &mut Criterion) {
     let mut group = c.benchmark_group("encode rgb");
     group.measurement_time(Duration::from_secs(25));
 
-    group.bench_function("encode rgb 100", |b| b.iter(|| encode_rgb_100(
-        black_box(&mut res),
-        black_box(&data),
-        black_box(width),
-        black_box(height),
-    )));
+    group.bench_function("encode rgb 100", |b| {
+        b.iter(|| {
+            encode_rgb_100(
+                black_box(&mut res),
+                black_box(&data),
+                black_box(width),
+                black_box(height),
+            )
+        })
+    });
 
-    group.bench_function("encode rgb 4x1", |b| b.iter(|| encode_rgb_4x1(
-        black_box(&mut res),
-        black_box(&data),
-        black_box(width),
-        black_box(height),
-    )));
+    group.bench_function("encode rgb 4x1", |b| {
+        b.iter(|| {
+            encode_rgb_4x1(
+                black_box(&mut res),
+                black_box(&data),
+                black_box(width),
+                black_box(height),
+            )
+        })
+    });
 
-    group.bench_function("encode rgb progressive", |b| b.iter(|| encode_rgb_progressive(
-        black_box(&mut res),
-        black_box(&data),
-        black_box(width),
-        black_box(height),
-    )));
+    group.bench_function("encode rgb progressive", |b| {
+        b.iter(|| {
+            encode_rgb_progressive(
+                black_box(&mut res),
+                black_box(&data),
+                black_box(width),
+                black_box(height),
+            )
+        })
+    });
 
-    group.bench_function("encode rgb optimized", |b| b.iter(|| encode_rgb_optimized(
-        black_box(&mut res),
-        black_box(&data),
-        black_box(width),
-        black_box(height),
-    )));
+    group.bench_function("encode rgb optimized", |b| {
+        b.iter(|| {
+            encode_rgb_optimized(
+                black_box(&mut res),
+                black_box(&data),
+                black_box(width),
+                black_box(height),
+            )
+        })
+    });
 
-    group.bench_function("encode rgb optimized progressive", |b| b.iter(|| encode_rgb_optimized_progressive(
-        black_box(&mut res),
-        black_box(&data),
-        black_box(width),
-        black_box(height),
-    )));
+    group.bench_function("encode rgb optimized progressive", |b| {
+        b.iter(|| {
+            encode_rgb_optimized_progressive(
+                black_box(&mut res),
+                black_box(&data),
+                black_box(width),
+                black_box(height),
+            )
+        })
+    });
 
     group.finish();
 }

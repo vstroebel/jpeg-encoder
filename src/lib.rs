@@ -28,32 +28,31 @@
 #[cfg(feature = "std")]
 extern crate std;
 
-extern crate core;
 extern crate alloc;
+extern crate core;
 
-mod writer;
-mod marker;
-mod huffman;
-mod fdct;
-mod quantization;
-mod image_buffer;
-mod encoder;
-mod error;
 #[cfg(all(feature = "simd", any(target_arch = "x86", target_arch = "x86_64")))]
 mod avx2;
+mod encoder;
+mod error;
+mod fdct;
+mod huffman;
+mod image_buffer;
+mod marker;
+mod quantization;
+mod writer;
 
-pub use writer::{Density, JfifWrite};
-pub use encoder::{ColorType, JpegColorType, SamplingFactor, Encoder};
+pub use encoder::{ColorType, Encoder, JpegColorType, SamplingFactor};
 pub use error::EncodingError;
+pub use image_buffer::{cmyk_to_ycck, rgb_to_ycbcr, ImageBuffer};
 pub use quantization::QuantizationTableType;
-pub use image_buffer::{ImageBuffer, rgb_to_ycbcr, cmyk_to_ycck};
-
+pub use writer::{Density, JfifWrite};
 
 #[cfg(test)]
 mod tests {
-    use crate::{Encoder, ColorType, SamplingFactor, QuantizationTableType};
-    use jpeg_decoder::{Decoder, PixelFormat, ImageInfo};
     use crate::image_buffer::rgb_to_ycbcr;
+    use crate::{ColorType, Encoder, QuantizationTableType, SamplingFactor};
+    use jpeg_decoder::{Decoder, ImageInfo, PixelFormat};
 
     use alloc::boxed::Box;
     use alloc::vec;
@@ -116,7 +115,13 @@ mod tests {
         (decoder.decode().unwrap(), decoder.info().unwrap())
     }
 
-    fn check_result(data: Vec<u8>, width: u16, height: u16, result: &mut Vec<u8>, pixel_format: PixelFormat) {
+    fn check_result(
+        data: Vec<u8>,
+        width: u16,
+        height: u16,
+        result: &mut Vec<u8>,
+        pixel_format: PixelFormat,
+    ) {
         let (img, info) = decode(&result);
 
         assert_eq!(info.pixel_format, pixel_format);
@@ -126,7 +131,13 @@ mod tests {
 
         for (i, (&v1, &v2)) in data.iter().zip(img.iter()).enumerate() {
             let diff = (v1 as i16 - v2 as i16).abs();
-            assert!(diff < 20, "Large color diff at index: {}: {} vs {}", i, v1, v2);
+            assert!(
+                diff < 20,
+                "Large color diff at index: {}: {} vs {}",
+                i,
+                v1,
+                v2
+            );
         }
     }
 
@@ -136,7 +147,9 @@ mod tests {
 
         let mut result = Vec::new();
         let encoder = Encoder::new(&mut result, 100);
-        encoder.encode(&data, width, height, ColorType::Luma).unwrap();
+        encoder
+            .encode(&data, width, height, ColorType::Luma)
+            .unwrap();
 
         check_result(data, width, height, &mut result, PixelFormat::L8);
     }
@@ -147,7 +160,9 @@ mod tests {
 
         let mut result = Vec::new();
         let encoder = Encoder::new(&mut result, 100);
-        encoder.encode(&data, width, height, ColorType::Rgb).unwrap();
+        encoder
+            .encode(&data, width, height, ColorType::Rgb)
+            .unwrap();
 
         check_result(data, width, height, &mut result, PixelFormat::RGB24);
     }
@@ -158,7 +173,9 @@ mod tests {
 
         let mut result = Vec::new();
         let encoder = Encoder::new(&mut result, 80);
-        encoder.encode(&data, width, height, ColorType::Rgb).unwrap();
+        encoder
+            .encode(&data, width, height, ColorType::Rgb)
+            .unwrap();
 
         check_result(data, width, height, &mut result, PixelFormat::RGB24);
     }
@@ -171,19 +188,16 @@ mod tests {
         let mut encoder = Encoder::new(&mut result, 100);
 
         let table = QuantizationTableType::Custom(Box::new([
-            1, 1, 1, 1, 1, 1, 1, 1,
-            1, 1, 1, 1, 1, 1, 1, 1,
-            1, 1, 1, 1, 1, 1, 1, 1,
-            1, 1, 1, 1, 1, 1, 1, 1,
-            1, 1, 1, 1, 1, 1, 1, 1,
-            1, 1, 1, 1, 1, 1, 1, 1,
-            1, 1, 1, 1, 1, 1, 1, 1,
-            1, 1, 1, 1, 1, 1, 1, 1,
+            1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+            1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+            1, 1, 1, 1, 1, 1,
         ]));
 
         encoder.set_quantization_tables(table.clone(), table);
 
-        encoder.encode(&data, width, height, ColorType::Rgb).unwrap();
+        encoder
+            .encode(&data, width, height, ColorType::Rgb)
+            .unwrap();
 
         check_result(data, width, height, &mut result, PixelFormat::RGB24);
     }
@@ -195,7 +209,9 @@ mod tests {
         let mut result = Vec::new();
         let mut encoder = Encoder::new(&mut result, 100);
         encoder.set_sampling_factor(SamplingFactor::F_2_2);
-        encoder.encode(&data, width, height, ColorType::Rgb).unwrap();
+        encoder
+            .encode(&data, width, height, ColorType::Rgb)
+            .unwrap();
 
         check_result(data, width, height, &mut result, PixelFormat::RGB24);
     }
@@ -207,7 +223,9 @@ mod tests {
         let mut result = Vec::new();
         let mut encoder = Encoder::new(&mut result, 100);
         encoder.set_sampling_factor(SamplingFactor::F_2_1);
-        encoder.encode(&data, width, height, ColorType::Rgb).unwrap();
+        encoder
+            .encode(&data, width, height, ColorType::Rgb)
+            .unwrap();
 
         check_result(data, width, height, &mut result, PixelFormat::RGB24);
     }
@@ -219,7 +237,9 @@ mod tests {
         let mut result = Vec::new();
         let mut encoder = Encoder::new(&mut result, 100);
         encoder.set_sampling_factor(SamplingFactor::F_4_1);
-        encoder.encode(&data, width, height, ColorType::Rgb).unwrap();
+        encoder
+            .encode(&data, width, height, ColorType::Rgb)
+            .unwrap();
 
         check_result(data, width, height, &mut result, PixelFormat::RGB24);
     }
@@ -231,7 +251,9 @@ mod tests {
         let mut result = Vec::new();
         let mut encoder = Encoder::new(&mut result, 100);
         encoder.set_sampling_factor(SamplingFactor::F_1_1);
-        encoder.encode(&data, width, height, ColorType::Rgb).unwrap();
+        encoder
+            .encode(&data, width, height, ColorType::Rgb)
+            .unwrap();
 
         check_result(data, width, height, &mut result, PixelFormat::RGB24);
     }
@@ -243,7 +265,9 @@ mod tests {
         let mut result = Vec::new();
         let mut encoder = Encoder::new(&mut result, 100);
         encoder.set_sampling_factor(SamplingFactor::F_1_4);
-        encoder.encode(&data, width, height, ColorType::Rgb).unwrap();
+        encoder
+            .encode(&data, width, height, ColorType::Rgb)
+            .unwrap();
 
         check_result(data, width, height, &mut result, PixelFormat::RGB24);
     }
@@ -257,7 +281,9 @@ mod tests {
         encoder.set_sampling_factor(SamplingFactor::F_2_1);
         encoder.set_progressive(true);
 
-        encoder.encode(&data, width, height, ColorType::Rgb).unwrap();
+        encoder
+            .encode(&data, width, height, ColorType::Rgb)
+            .unwrap();
 
         check_result(data, width, height, &mut result, PixelFormat::RGB24);
     }
@@ -271,7 +297,9 @@ mod tests {
         encoder.set_sampling_factor(SamplingFactor::F_2_2);
         encoder.set_optimized_huffman_tables(true);
 
-        encoder.encode(&data, width, height, ColorType::Rgb).unwrap();
+        encoder
+            .encode(&data, width, height, ColorType::Rgb)
+            .unwrap();
 
         check_result(data, width, height, &mut result, PixelFormat::RGB24);
     }
@@ -286,7 +314,9 @@ mod tests {
         encoder.set_progressive(true);
         encoder.set_optimized_huffman_tables(true);
 
-        encoder.encode(&data, width, height, ColorType::Rgb).unwrap();
+        encoder
+            .encode(&data, width, height, ColorType::Rgb)
+            .unwrap();
 
         check_result(data, width, height, &mut result, PixelFormat::RGB24);
     }
@@ -297,7 +327,9 @@ mod tests {
 
         let mut result = Vec::new();
         let encoder = Encoder::new(&mut result, 100);
-        encoder.encode(&data, width, height, ColorType::Cmyk).unwrap();
+        encoder
+            .encode(&data, width, height, ColorType::Cmyk)
+            .unwrap();
 
         check_result(data, width, height, &mut result, PixelFormat::CMYK32);
     }
@@ -308,7 +340,9 @@ mod tests {
 
         let mut result = Vec::new();
         let encoder = Encoder::new(&mut result, 100);
-        encoder.encode(&data, width, height, ColorType::CmykAsYcck).unwrap();
+        encoder
+            .encode(&data, width, height, ColorType::CmykAsYcck)
+            .unwrap();
 
         check_result(data, width, height, &mut result, PixelFormat::CMYK32);
     }
@@ -323,9 +357,12 @@ mod tests {
         encoder.set_restart_interval(32);
         const DRI_DATA: &[u8; 6] = b"\xFF\xDD\0\x04\0\x20";
 
-        encoder.encode(&data, width, height, ColorType::Rgb).unwrap();
+        encoder
+            .encode(&data, width, height, ColorType::Rgb)
+            .unwrap();
 
-        assert!(result.as_slice()
+        assert!(result
+            .as_slice()
             .windows(DRI_DATA.len())
             .any(|w| w == DRI_DATA));
 
@@ -343,9 +380,12 @@ mod tests {
         encoder.set_restart_interval(32);
         const DRI_DATA: &[u8; 6] = b"\xFF\xDD\0\x04\0\x20";
 
-        encoder.encode(&data, width, height, ColorType::Rgb).unwrap();
+        encoder
+            .encode(&data, width, height, ColorType::Rgb)
+            .unwrap();
 
-        assert!(result.as_slice()
+        assert!(result
+            .as_slice()
             .windows(DRI_DATA.len())
             .any(|w| w == DRI_DATA));
 
@@ -363,9 +403,12 @@ mod tests {
         encoder.set_restart_interval(32);
         const DRI_DATA: &[u8; 6] = b"\xFF\xDD\0\x04\0\x20";
 
-        encoder.encode(&data, width, height, ColorType::Rgb).unwrap();
+        encoder
+            .encode(&data, width, height, ColorType::Rgb)
+            .unwrap();
 
-        assert!(result.as_slice()
+        assert!(result
+            .as_slice()
             .windows(DRI_DATA.len())
             .any(|w| w == DRI_DATA));
 
@@ -381,11 +424,14 @@ mod tests {
 
         encoder.add_app_segment(15, b"HOHOHO\0").unwrap();
 
-        encoder.encode(&data, width, height, ColorType::Rgb).unwrap();
+        encoder
+            .encode(&data, width, height, ColorType::Rgb)
+            .unwrap();
 
         let segment_data = b"\xEF\0\x09HOHOHO\0";
 
-        assert!(result.as_slice()
+        assert!(result
+            .as_slice()
             .windows(segment_data.len())
             .any(|w| w == segment_data));
     }
@@ -405,13 +451,13 @@ mod tests {
 
         encoder.add_icc_profile(&icc).unwrap();
 
-        encoder.encode(&data, width, height, ColorType::Rgb).unwrap();
+        encoder
+            .encode(&data, width, height, ColorType::Rgb)
+            .unwrap();
 
         const MARKER: &[u8; 12] = b"ICC_PROFILE\0";
 
-        assert!(result.as_slice()
-            .windows(MARKER.len())
-            .any(|w| w == MARKER));
+        assert!(result.as_slice().windows(MARKER.len()).any(|w| w == MARKER));
 
         let mut decoder = Decoder::new(result.as_slice());
 

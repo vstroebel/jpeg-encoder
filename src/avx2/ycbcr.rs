@@ -1,12 +1,18 @@
 #[cfg(target_arch = "x86")]
-use core::arch::x86::{__m256i, _mm256_set_epi32, _mm256_set1_epi32, _mm256_mullo_epi32, _mm256_add_epi32, _mm256_srli_epi32, _mm256_sub_epi32};
+use core::arch::x86::{
+    __m256i, _mm256_add_epi32, _mm256_mullo_epi32, _mm256_set1_epi32, _mm256_set_epi32,
+    _mm256_srli_epi32, _mm256_sub_epi32,
+};
 
 #[cfg(target_arch = "x86_64")]
-use core::arch::x86_64::{__m256i, _mm256_set_epi32, _mm256_set1_epi32, _mm256_mullo_epi32, _mm256_add_epi32, _mm256_srli_epi32, _mm256_sub_epi32};
+use core::arch::x86_64::{
+    __m256i, _mm256_add_epi32, _mm256_mullo_epi32, _mm256_set1_epi32, _mm256_set_epi32,
+    _mm256_srli_epi32, _mm256_sub_epi32,
+};
 
 use alloc::vec::Vec;
 
-use crate::{ImageBuffer, JpegColorType, rgb_to_ycbcr};
+use crate::{rgb_to_ycbcr, ImageBuffer, JpegColorType};
 
 macro_rules! ycbcr_image_avx2 {
     ($name:ident, $num_colors:expr, $o1:expr, $o2:expr, $o3:expr) => {
@@ -15,7 +21,6 @@ macro_rules! ycbcr_image_avx2 {
         impl<'a> $name<'a> {
             #[target_feature(enable = "avx2")]
             unsafe fn fill_buffers_avx2(&self, y: u16, buffers: &mut [Vec<u8>; 4]) {
-
                 unsafe fn load3(data: *const u8) -> __m256i {
                     _mm256_set_epi32(
                         *data as i32,
@@ -25,8 +30,9 @@ macro_rules! ycbcr_image_avx2 {
                         *data.offset(4 * $num_colors) as i32,
                         *data.offset(5 * $num_colors) as i32,
                         *data.offset(6 * $num_colors) as i32,
-                        *data.offset(7 * $num_colors) as i32)
-                 }
+                        *data.offset(7 * $num_colors) as i32,
+                    )
+                }
 
                 let mut y_buffer = buffers[0].as_mut_ptr().add(buffers[0].len());
                 buffers[0].set_len(buffers[0].len() + self.width() as usize);
@@ -47,7 +53,10 @@ macro_rules! ycbcr_image_avx2 {
                 let crmulg = _mm256_set1_epi32(27439);
                 let crmulb = _mm256_set1_epi32(5329);
 
-                let mut data = self.0.as_ptr().offset((y as isize * self.1 as isize * $num_colors));
+                let mut data = self
+                    .0
+                    .as_ptr()
+                    .offset((y as isize * self.1 as isize * $num_colors));
 
                 for _ in 0..self.width() / 8 {
                     let r = load3(data.offset($o1));
@@ -102,7 +111,8 @@ macro_rules! ycbcr_image_avx2 {
                 }
 
                 for _ in 0..self.width() % 8 {
-                    let (y, cb, cr) = rgb_to_ycbcr(*data.offset($o1), *data.offset($o2), *data.offset($o3));
+                    let (y, cb, cr) =
+                        rgb_to_ycbcr(*data.offset($o1), *data.offset($o2), *data.offset($o3));
 
                     data = data.add($num_colors);
 
@@ -116,7 +126,6 @@ macro_rules! ycbcr_image_avx2 {
                     cr_buffer = cr_buffer.offset(1);
                 }
             }
-
         }
 
         impl<'a> ImageBuffer for $name<'a> {
@@ -139,7 +148,7 @@ macro_rules! ycbcr_image_avx2 {
                 }
             }
         }
-    }
+    };
 }
 
 ycbcr_image_avx2!(RgbImageAVX2, 3, 0, 1, 2);

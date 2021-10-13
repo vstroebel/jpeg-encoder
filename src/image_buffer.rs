@@ -7,7 +7,6 @@ use crate::encoder::JpegColorType;
 /// Conversion from RGB to YCbCr
 #[inline]
 pub fn rgb_to_ycbcr(r: u8, g: u8, b: u8) -> (u8, u8, u8) {
-
     // To avoid floating point math this scales everything by 2^16 which gives
     // a precision of approx 4 digits.
     //
@@ -141,8 +140,13 @@ macro_rules! ycbcr_image {
             #[inline(always)]
             fn fill_buffers(&self, y: u16, buffers: &mut [Vec<u8>; 4]) {
                 for x in 0..self.width() {
-                    let offset = (usize::from(y) * usize::from(self.1) + usize::from(x)) * $num_colors;
-                    let (y, cb, cr) = rgb_to_ycbcr(self.0[offset + $o1], self.0[offset + $o2], self.0[offset + $o3]);
+                    let offset =
+                        (usize::from(y) * usize::from(self.1) + usize::from(x)) * $num_colors;
+                    let (y, cb, cr) = rgb_to_ycbcr(
+                        self.0[offset + $o1],
+                        self.0[offset + $o2],
+                        self.0[offset + $o3],
+                    );
 
                     buffers[0].push(y);
                     buffers[1].push(cb);
@@ -150,7 +154,7 @@ macro_rules! ycbcr_image {
                 }
             }
         }
-    }
+    };
 }
 
 ycbcr_image!(RgbImage, 3, 0, 1, 2);
@@ -234,7 +238,8 @@ impl<'a> ImageBuffer for CmykAsYcckImage<'a> {
                 self.0[offset + 0],
                 self.0[offset + 1],
                 self.0[offset + 2],
-                self.0[offset + 3]);
+                self.0[offset + 3],
+            );
 
             buffers[0].push(y);
             buffers[1].push(cb);

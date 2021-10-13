@@ -1,8 +1,8 @@
 use crate::encoder::Component;
-use crate::EncodingError;
 use crate::huffman::{CodingClass, HuffmanTable};
 use crate::marker::{Marker, SOFType};
 use crate::quantization::QuantizationTable;
+use crate::EncodingError;
 
 /// Density settings
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -21,14 +21,9 @@ pub enum Density {
 ///
 /// Figure A.6
 pub static ZIGZAG: [u8; 64] = [
-    0, 1, 8, 16, 9, 2, 3, 10,
-    17, 24, 32, 25, 18, 11, 4, 5,
-    12, 19, 26, 33, 40, 48, 41, 34,
-    27, 20, 13, 6, 7, 14, 21, 28,
-    35, 42, 49, 56, 57, 50, 43, 36,
-    29, 22, 15, 23, 30, 37, 44, 51,
-    58, 59, 52, 45, 38, 31, 39, 46,
-    53, 60, 61, 54, 47, 55, 62, 63,
+    0, 1, 8, 16, 9, 2, 3, 10, 17, 24, 32, 25, 18, 11, 4, 5, 12, 19, 26, 33, 40, 48, 41, 34, 27, 20,
+    13, 6, 7, 14, 21, 28, 35, 42, 49, 56, 57, 50, 43, 36, 29, 22, 15, 23, 30, 37, 44, 51, 58, 59,
+    52, 45, 38, 31, 39, 46, 53, 60, 61, 54, 47, 55, 62, 63,
 ];
 
 const BUFFER_SIZE: usize = core::mem::size_of::<usize>() * 8;
@@ -121,7 +116,11 @@ impl<W: JfifWrite> JfifWriter<W> {
     #[inline(always)]
     #[allow(overflowing_literals)]
     fn write_bit_buffer(&mut self) -> Result<(), EncodingError> {
-        if (self.bit_buffer & 0x8080808080808080 & !(self.bit_buffer.wrapping_add(0x0101010101010101))) != 0 {
+        if (self.bit_buffer
+            & 0x8080808080808080
+            & !(self.bit_buffer.wrapping_add(0x0101010101010101)))
+            != 0
+        {
             self.flush_bit_buffer()
         } else {
             self.free_bits = 0;
@@ -200,7 +199,12 @@ impl<W: JfifWrite> JfifWriter<W> {
     /// |--------|---------------|--------------------------|--------------------|--------|
     /// ```
     ///
-    pub fn write_huffman_segment(&mut self, class: CodingClass, destination: u8, table: &HuffmanTable) -> Result<(), EncodingError> {
+    pub fn write_huffman_segment(
+        &mut self,
+        class: CodingClass,
+        destination: u8,
+        table: &HuffmanTable,
+    ) -> Result<(), EncodingError> {
         assert!(destination < 4, "Bad destination: {}", destination);
 
         self.write_marker(Marker::DHT)?;
@@ -225,7 +229,11 @@ impl<W: JfifWrite> JfifWriter<W> {
     /// |--------|---------------|------------------------------|--------|--------|-----|--------|
     /// ```
     ///
-    pub fn write_quantization_segment(&mut self, destination: u8, table: &QuantizationTable) -> Result<(), EncodingError> {
+    pub fn write_quantization_segment(
+        &mut self,
+        destination: u8,
+        table: &QuantizationTable,
+    ) -> Result<(), EncodingError> {
         assert!(destination < 4, "Bad destination: {}", destination);
 
         self.write_marker(Marker::DQT)?;
@@ -253,7 +261,13 @@ impl<W: JfifWrite> JfifWriter<W> {
     }
 
     #[inline]
-    pub fn huffman_encode_value(&mut self, size: u8, symbol: u8, value: u16, table: &HuffmanTable) -> Result<(), EncodingError> {
+    pub fn huffman_encode_value(
+        &mut self,
+        size: u8,
+        symbol: u8,
+        value: u16,
+        table: &HuffmanTable,
+    ) -> Result<(), EncodingError> {
         let &(num_bits, code) = table.get_for_value(symbol);
 
         let mut temp = value as u32;
@@ -322,7 +336,13 @@ impl<W: JfifWrite> JfifWriter<W> {
         Ok(())
     }
 
-    pub fn write_frame_header(&mut self, width: u16, height: u16, components: &[Component], progressive: bool) -> Result<(), EncodingError> {
+    pub fn write_frame_header(
+        &mut self,
+        width: u16,
+        height: u16,
+        components: &[Component],
+        progressive: bool,
+    ) -> Result<(), EncodingError> {
         if progressive {
             self.write_marker(Marker::SOF(SOFType::ProgressiveDCT))?;
         } else {
@@ -341,14 +361,20 @@ impl<W: JfifWrite> JfifWriter<W> {
 
         for component in components.iter() {
             self.write_u8(component.id)?;
-            self.write_u8((component.horizontal_sampling_factor << 4) | component.vertical_sampling_factor)?;
+            self.write_u8(
+                (component.horizontal_sampling_factor << 4) | component.vertical_sampling_factor,
+            )?;
             self.write_u8(component.quantization_table)?;
         }
 
         Ok(())
     }
 
-    pub fn write_scan_header(&mut self, components: &[&Component], spectral: Option<(u8, u8)>) -> Result<(), EncodingError> {
+    pub fn write_scan_header(
+        &mut self,
+        components: &[&Component],
+        spectral: Option<(u8, u8)>,
+    ) -> Result<(), EncodingError> {
         self.write_marker(Marker::SOS)?;
 
         self.write_u16(2 + 1 + (components.len() as u16) * 2 + 3)?;

@@ -39,11 +39,7 @@ impl Display for EncodingError {
     fn fmt(&self, f: &mut alloc::fmt::Formatter<'_>) -> alloc::fmt::Result {
         use EncodingError::*;
         match self {
-            InvalidAppSegment(nr) => write!(
-                f,
-                "Invalid app segment number: {}",
-                nr
-            ),
+            InvalidAppSegment(nr) => write!(f, "Invalid app segment number: {}", nr),
             AppSegmentTooLarge(length) => write!(
                 f,
                 "App segment exceeds maximum allowed data length of 65533: {}",
@@ -57,15 +53,11 @@ impl Display for EncodingError {
             BadImageData { length, required } => write!(
                 f,
                 "Image data too small for dimensions and color_type: {} need at least {}",
-                length,
-                required
+                length, required
             ),
-            ZeroImageDimensions { width, height } => write!(
-                f,
-                "Image dimensions must be non zero: {}x{}",
-                width,
-                height
-            ),
+            ZeroImageDimensions { width, height } => {
+                write!(f, "Image dimensions must be non zero: {}x{}", width, height)
+            }
             #[cfg(feature = "std")]
             IoError(err) => err.fmt(f),
             Write(err) => write!(f, "{}", err),
@@ -78,8 +70,7 @@ impl Error for EncodingError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
             EncodingError::IoError(err) => Some(err),
-            _ => None
+            _ => None,
         }
     }
 }
-
