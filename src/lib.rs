@@ -22,6 +22,9 @@
 //! # Ok(())
 //! # }
 
+extern crate core;
+extern crate alloc;
+
 mod writer;
 mod marker;
 mod huffman;
@@ -45,6 +48,10 @@ mod tests {
     use crate::{Encoder, ColorType, SamplingFactor, QuantizationTableType};
     use jpeg_decoder::{Decoder, PixelFormat, ImageInfo};
     use crate::image_buffer::rgb_to_ycbcr;
+
+    use alloc::boxed::Box;
+    use alloc::vec;
+    use alloc::vec::Vec;
 
     fn create_test_img_rgb() -> (Vec<u8>, u16, u16) {
         let width = 255;

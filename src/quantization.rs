@@ -1,4 +1,5 @@
-use std::num::NonZeroU16;
+use core::num::NonZeroU16;
+use alloc::boxed::Box;
 
 /// # Quantization table used for encoding
 ///

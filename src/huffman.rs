@@ -3,6 +3,8 @@
  * section K.3 Typical Huffman tables for 8-bit precision luminance and chrominance
  */
 
+use alloc::vec::Vec;
+
 #[derive(Copy, Clone, Debug)]
 pub enum CodingClass {
     Dc = 0,

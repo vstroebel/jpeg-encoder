@@ -8,10 +8,10 @@
  */
 
 #[cfg(target_arch = "x86")]
-use std::arch::x64::{__m256i, _mm256_unpacklo_epi16, _mm256_unpackhi_epi16, _mm256_unpacklo_epi32, _mm256_unpackhi_epi32, _mm256_permute4x64_epi64, _mm256_sub_epi16, _mm256_add_epi16, _mm256_permute2x128_si256, _mm256_sign_epi16, _mm256_slli_epi16, _mm256_set_epi32, _mm256_madd_epi16, _mm256_add_epi32, _mm256_srai_epi32, _mm256_packs_epi32, _mm256_set_epi16, _mm256_loadu_si256, _mm256_storeu_si256, _mm256_srai_epi16};
+use core::arch::x64::{__m256i, _mm256_unpacklo_epi16, _mm256_unpackhi_epi16, _mm256_unpacklo_epi32, _mm256_unpackhi_epi32, _mm256_permute4x64_epi64, _mm256_sub_epi16, _mm256_add_epi16, _mm256_permute2x128_si256, _mm256_sign_epi16, _mm256_slli_epi16, _mm256_set_epi32, _mm256_madd_epi16, _mm256_add_epi32, _mm256_srai_epi32, _mm256_packs_epi32, _mm256_set_epi16, _mm256_loadu_si256, _mm256_storeu_si256, _mm256_srai_epi16};
 
 #[cfg(target_arch = "x86_64")]
-use std::arch::x86_64::{__m256i, _mm256_unpacklo_epi16, _mm256_unpackhi_epi16, _mm256_unpacklo_epi32, _mm256_unpackhi_epi32, _mm256_permute4x64_epi64, _mm256_sub_epi16, _mm256_add_epi16, _mm256_permute2x128_si256, _mm256_sign_epi16, _mm256_slli_epi16, _mm256_set_epi32, _mm256_madd_epi16, _mm256_add_epi32, _mm256_srai_epi32, _mm256_packs_epi32, _mm256_set_epi16, _mm256_loadu_si256, _mm256_storeu_si256, _mm256_srai_epi16};
+use core::arch::x86_64::{__m256i, _mm256_unpacklo_epi16, _mm256_unpackhi_epi16, _mm256_unpacklo_epi32, _mm256_unpackhi_epi32, _mm256_permute4x64_epi64, _mm256_sub_epi16, _mm256_add_epi16, _mm256_permute2x128_si256, _mm256_sign_epi16, _mm256_slli_epi16, _mm256_set_epi32, _mm256_madd_epi16, _mm256_add_epi32, _mm256_srai_epi32, _mm256_packs_epi32, _mm256_set_epi16, _mm256_loadu_si256, _mm256_storeu_si256, _mm256_srai_epi16};
 
 const CONST_BITS: i32 = 13;
 const PASS1_BITS: i32 = 2;
@@ -337,7 +337,7 @@ unsafe fn fdct_avx2_internal(data: &mut [i16; 64]) {
         (t1, t2, t3, t4)
     }
 
-    let in_data = std::mem::transmute(data.as_mut_ptr());
+    let in_data = core::mem::transmute(data.as_mut_ptr());
 
     let ymm4 = _mm256_loadu_si256(in_data);
     let ymm5 = _mm256_loadu_si256(in_data.add(1));
@@ -376,7 +376,7 @@ unsafe fn fdct_avx2_internal(data: &mut [i16; 64]) {
     let ymm6 = _mm256_permute2x128_si256(ymm0, ymm4, 0x31); // ymm6=data4_5
     let ymm7 = _mm256_permute2x128_si256(ymm2, ymm4, 0x21); // ymm7=data6_7
 
-    let out_data = std::mem::transmute(data.as_mut_ptr());
+    let out_data = core::mem::transmute(data.as_mut_ptr());
 
     _mm256_storeu_si256(out_data, ymm3);
     _mm256_storeu_si256(out_data.add(1), ymm5);

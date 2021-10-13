@@ -6,6 +6,9 @@ use crate::image_buffer::*;
 use crate::quantization::{QuantizationTable, QuantizationTableType};
 use crate::{Density, EncodingError};
 
+use alloc::vec;
+use alloc::vec::Vec;
+
 use std::io::{Write, BufWriter};
 use std::fs::File;
 use std::path::Path;
@@ -1152,6 +1155,9 @@ impl Operations for DefaultOperations {}
 
 #[cfg(test)]
 mod tests {
+
+    use alloc::vec;
+
     use crate::encoder::get_num_bits;
     use crate::writer::get_code;
     use crate::{SamplingFactor, Encoder};

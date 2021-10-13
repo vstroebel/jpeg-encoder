@@ -1,8 +1,10 @@
 #[cfg(target_arch = "x86")]
-use std::arch::x86::{__m256i, _mm256_set_epi32, _mm256_set1_epi32, _mm256_mullo_epi32, _mm256_add_epi32, _mm256_srli_epi32, _mm256_sub_epi32};
+use core::arch::x86::{__m256i, _mm256_set_epi32, _mm256_set1_epi32, _mm256_mullo_epi32, _mm256_add_epi32, _mm256_srli_epi32, _mm256_sub_epi32};
 
 #[cfg(target_arch = "x86_64")]
-use std::arch::x86_64::{__m256i, _mm256_set_epi32, _mm256_set1_epi32, _mm256_mullo_epi32, _mm256_add_epi32, _mm256_srli_epi32, _mm256_sub_epi32};
+use core::arch::x86_64::{__m256i, _mm256_set_epi32, _mm256_set1_epi32, _mm256_mullo_epi32, _mm256_add_epi32, _mm256_srli_epi32, _mm256_sub_epi32};
+
+use alloc::vec::Vec;
 
 use crate::{ImageBuffer, JpegColorType, rgb_to_ycbcr};
 
@@ -61,7 +63,7 @@ macro_rules! ycbcr_image_avx2 {
                     let y = _mm256_add_epi32(_mm256_add_epi32(yr, yg), yb);
                     let y = _mm256_add_epi32(y, _mm256_set1_epi32(1 << 15));
                     let y = _mm256_srli_epi32(y, 16);
-                    let y: [i32; 8] = std::mem::transmute(y);
+                    let y: [i32; 8] = core::mem::transmute(y);
 
                     let cbr = _mm256_mullo_epi32(cbmulr, r);
                     let cbg = _mm256_mullo_epi32(cbmulg, g);
@@ -71,7 +73,7 @@ macro_rules! ycbcr_image_avx2 {
                     let cb = _mm256_add_epi32(cb, _mm256_set1_epi32(128 << 16));
                     let cb = _mm256_add_epi32(cb, _mm256_set1_epi32(1 << 15));
                     let cb = _mm256_srli_epi32(cb, 16);
-                    let cb: [i32; 8] = std::mem::transmute(cb);
+                    let cb: [i32; 8] = core::mem::transmute(cb);
 
                     let crr = _mm256_mullo_epi32(crmulr, r);
                     let crg = _mm256_mullo_epi32(crmulg, g);
@@ -81,7 +83,7 @@ macro_rules! ycbcr_image_avx2 {
                     let cr = _mm256_add_epi32(cr, _mm256_set1_epi32(128 << 16));
                     let cr = _mm256_add_epi32(cr, _mm256_set1_epi32(1 << 15));
                     let cr = _mm256_srli_epi32(cr, 16);
-                    let cr: [i32; 8] = std::mem::transmute(cr);
+                    let cr: [i32; 8] = core::mem::transmute(cr);
 
                     for y in y.iter().rev() {
                         *y_buffer = *y as u8;

@@ -1,5 +1,7 @@
 #![allow(clippy::identity_op)]
 
+use alloc::vec::Vec;
+
 use crate::encoder::JpegColorType;
 
 /// Conversion from RGB to YCbCr

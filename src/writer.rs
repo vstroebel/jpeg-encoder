@@ -32,7 +32,7 @@ pub static ZIGZAG: [u8; 64] = [
     53, 60, 61, 54, 47, 55, 62, 63,
 ];
 
-const BUFFER_SIZE: usize = std::mem::size_of::<usize>() * 8;
+const BUFFER_SIZE: usize = core::mem::size_of::<usize>() * 8;
 
 
 pub(crate) struct JfifWriter<W: Write> {
