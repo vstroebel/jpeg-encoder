@@ -1,9 +1,8 @@
-use crate::marker::{Marker, SOFType};
-use crate::huffman::{HuffmanTable, CodingClass};
-use crate::quantization::QuantizationTable;
 use crate::encoder::Component;
-
-use std::io::{Write, Result as IOResult};
+use crate::EncodingError;
+use crate::huffman::{CodingClass, HuffmanTable};
+use crate::marker::{Marker, SOFType};
+use crate::quantization::QuantizationTable;
 
 /// Density settings
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -34,14 +33,46 @@ pub static ZIGZAG: [u8; 64] = [
 
 const BUFFER_SIZE: usize = core::mem::size_of::<usize>() * 8;
 
+/// A no_std alternative for `std::io::Write`
+///
+/// An implementation of a subset of `std::io::Write` necessary to use the encoder without `std`.
+/// This trait is implemented for `std::io::Write` if the `std` feature is enabled.
+pub trait JfifWrite {
+    /// Writes the whole buffer. The behavior must be identical to std::io::Write::write_all
+    fn write_all(&mut self, buf: &[u8]) -> Result<(), EncodingError>;
+}
 
-pub(crate) struct JfifWriter<W: Write> {
+#[cfg(not(feature = "std"))]
+impl<W: JfifWrite + ?Sized> JfifWrite for &mut W {
+    fn write_all(&mut self, buf: &[u8]) -> Result<(), EncodingError> {
+        (**self).write_all(buf)
+    }
+}
+
+#[cfg(not(feature = "std"))]
+impl JfifWrite for alloc::vec::Vec<u8> {
+    fn write_all(&mut self, buf: &[u8]) -> Result<(), EncodingError> {
+        self.extend_from_slice(buf);
+        Ok(())
+    }
+}
+
+#[cfg(feature = "std")]
+impl<W: std::io::Write + ?Sized> JfifWrite for W {
+    #[inline(always)]
+    fn write_all(&mut self, buf: &[u8]) -> Result<(), EncodingError> {
+        self.write_all(buf)?;
+        Ok(())
+    }
+}
+
+pub(crate) struct JfifWriter<W: JfifWrite> {
     w: W,
     bit_buffer: usize,
     free_bits: i8,
 }
 
-impl<W: Write> JfifWriter<W> {
+impl<W: JfifWrite> JfifWriter<W> {
     pub fn new(w: W) -> Self {
         JfifWriter {
             w,
@@ -50,19 +81,19 @@ impl<W: Write> JfifWriter<W> {
         }
     }
 
-    pub fn write(&mut self, buf: &[u8]) -> IOResult<()> {
+    pub fn write(&mut self, buf: &[u8]) -> Result<(), EncodingError> {
         self.w.write_all(buf)
     }
 
-    pub fn write_u8(&mut self, value: u8) -> IOResult<()> {
+    pub fn write_u8(&mut self, value: u8) -> Result<(), EncodingError> {
         self.w.write_all(&[value])
     }
 
-    pub fn write_u16(&mut self, value: u16) -> IOResult<()> {
+    pub fn write_u16(&mut self, value: u16) -> Result<(), EncodingError> {
         self.w.write_all(&value.to_be_bytes())
     }
 
-    pub fn finalize_bit_buffer(&mut self) -> IOResult<()> {
+    pub fn finalize_bit_buffer(&mut self) -> Result<(), EncodingError> {
         self.write_bits(0x7F, 7)?;
         self.flush_bit_buffer()?;
         self.bit_buffer = 0;
@@ -71,7 +102,7 @@ impl<W: Write> JfifWriter<W> {
         Ok(())
     }
 
-    pub fn flush_bit_buffer(&mut self) -> IOResult<()> {
+    pub fn flush_bit_buffer(&mut self) -> Result<(), EncodingError> {
         while self.free_bits <= (BUFFER_SIZE as i8 - 8) {
             let value = (self.bit_buffer >> (BUFFER_SIZE as i8 - 8 - self.free_bits)) & 0xFF;
 
@@ -89,7 +120,7 @@ impl<W: Write> JfifWriter<W> {
 
     #[inline(always)]
     #[allow(overflowing_literals)]
-    fn write_bit_buffer(&mut self) -> IOResult<()> {
+    fn write_bit_buffer(&mut self) -> Result<(), EncodingError> {
         if (self.bit_buffer & 0x8080808080808080 & !(self.bit_buffer.wrapping_add(0x0101010101010101))) != 0 {
             self.flush_bit_buffer()
         } else {
@@ -98,7 +129,7 @@ impl<W: Write> JfifWriter<W> {
         }
     }
 
-    pub fn write_bits(&mut self, value: u32, size: u8) -> IOResult<()> {
+    pub fn write_bits(&mut self, value: u32, size: u8) -> Result<(), EncodingError> {
         let size = size as i8;
         let value = value as usize;
 
@@ -117,11 +148,11 @@ impl<W: Write> JfifWriter<W> {
         Ok(())
     }
 
-    pub fn write_marker(&mut self, marker: Marker) -> IOResult<()> {
+    pub fn write_marker(&mut self, marker: Marker) -> Result<(), EncodingError> {
         self.write(&[0xFF, marker.into()])
     }
 
-    pub fn write_segment(&mut self, marker: Marker, data: &[u8]) -> IOResult<()> {
+    pub fn write_segment(&mut self, marker: Marker, data: &[u8]) -> Result<(), EncodingError> {
         self.write_marker(marker)?;
         self.write_u16(data.len() as u16 + 2)?;
         self.write(data)?;
@@ -129,7 +160,7 @@ impl<W: Write> JfifWriter<W> {
         Ok(())
     }
 
-    pub fn write_header(&mut self, density: &Density) -> IOResult<()> {
+    pub fn write_header(&mut self, density: &Density) -> Result<(), EncodingError> {
         self.write_marker(Marker::APP(0))?;
         self.write_u16(16)?;
 
@@ -169,7 +200,7 @@ impl<W: Write> JfifWriter<W> {
     /// |--------|---------------|--------------------------|--------------------|--------|
     /// ```
     ///
-    pub fn write_huffman_segment(&mut self, class: CodingClass, destination: u8, table: &HuffmanTable) -> IOResult<()> {
+    pub fn write_huffman_segment(&mut self, class: CodingClass, destination: u8, table: &HuffmanTable) -> Result<(), EncodingError> {
         assert!(destination < 4, "Bad destination: {}", destination);
 
         self.write_marker(Marker::DHT)?;
@@ -194,7 +225,7 @@ impl<W: Write> JfifWriter<W> {
     /// |--------|---------------|------------------------------|--------|--------|-----|--------|
     /// ```
     ///
-    pub fn write_quantization_segment(&mut self, destination: u8, table: &QuantizationTable) -> IOResult<()> {
+    pub fn write_quantization_segment(&mut self, destination: u8, table: &QuantizationTable) -> Result<(), EncodingError> {
         assert!(destination < 4, "Bad destination: {}", destination);
 
         self.write_marker(Marker::DQT)?;
@@ -209,20 +240,20 @@ impl<W: Write> JfifWriter<W> {
         Ok(())
     }
 
-    pub fn write_dri(&mut self, restart_interval: u16) -> IOResult<()> {
+    pub fn write_dri(&mut self, restart_interval: u16) -> Result<(), EncodingError> {
         self.write_marker(Marker::DRI)?;
         self.write_u16(4)?;
         self.write_u16(restart_interval)
     }
 
     #[inline]
-    pub fn huffman_encode(&mut self, val: u8, table: &HuffmanTable) -> IOResult<()> {
+    pub fn huffman_encode(&mut self, val: u8, table: &HuffmanTable) -> Result<(), EncodingError> {
         let &(size, code) = table.get_for_value(val);
         self.write_bits(code as u32, size)
     }
 
     #[inline]
-    pub fn huffman_encode_value(&mut self, size: u8, symbol: u8, value: u16, table: &HuffmanTable) -> IOResult<()> {
+    pub fn huffman_encode_value(&mut self, size: u8, symbol: u8, value: u16, table: &HuffmanTable) -> Result<(), EncodingError> {
         let &(num_bits, code) = table.get_for_value(symbol);
 
         let mut temp = value as u32;
@@ -238,7 +269,7 @@ impl<W: Write> JfifWriter<W> {
         prev_dc: i16,
         dc_table: &HuffmanTable,
         ac_table: &HuffmanTable,
-    ) -> IOResult<()> {
+    ) -> Result<(), EncodingError> {
         self.write_dc(block[0], prev_dc, dc_table)?;
         self.write_ac_block(block, 1, 64, ac_table)
     }
@@ -248,7 +279,7 @@ impl<W: Write> JfifWriter<W> {
         value: i16,
         prev_dc: i16,
         dc_table: &HuffmanTable,
-    ) -> IOResult<()> {
+    ) -> Result<(), EncodingError> {
         let diff = value - prev_dc;
         let (size, value) = get_code(diff);
 
@@ -263,7 +294,7 @@ impl<W: Write> JfifWriter<W> {
         start: usize,
         end: usize,
         ac_table: &HuffmanTable,
-    ) -> IOResult<()> {
+    ) -> Result<(), EncodingError> {
         let mut zero_run = 0;
 
         for &value in &block[start..end] {
@@ -291,7 +322,7 @@ impl<W: Write> JfifWriter<W> {
         Ok(())
     }
 
-    pub fn write_frame_header(&mut self, width: u16, height: u16, components: &[Component], progressive: bool) -> IOResult<()> {
+    pub fn write_frame_header(&mut self, width: u16, height: u16, components: &[Component], progressive: bool) -> Result<(), EncodingError> {
         if progressive {
             self.write_marker(Marker::SOF(SOFType::ProgressiveDCT))?;
         } else {
@@ -317,7 +348,7 @@ impl<W: Write> JfifWriter<W> {
         Ok(())
     }
 
-    pub fn write_scan_header(&mut self, components: &[&Component], spectral: Option<(u8, u8)>) -> IOResult<()> {
+    pub fn write_scan_header(&mut self, components: &[&Component], spectral: Option<(u8, u8)>) -> Result<(), EncodingError> {
         self.write_marker(Marker::SOS)?;
 
         self.write_u16(2 + 1 + (components.len() as u16) * 2 + 3)?;

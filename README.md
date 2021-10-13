@@ -15,6 +15,7 @@ JPEG encoder written in Rust
 - Restart interval
 - Custom quantization tables
 - AVX2 based optimizations (Optional)
+- Support for no_std + alloc
 
 ## Example
 ```rust

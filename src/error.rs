@@ -1,5 +1,6 @@
+use alloc::fmt::Display;
+#[cfg(feature = "std")]
 use std::error::Error;
-use std::fmt::Display;
 
 /// # The error type for encoding
 #[derive(Debug)]
@@ -20,9 +21,14 @@ pub enum EncodingError {
     ZeroImageDimensions { width: u16, height: u16 },
 
     /// An io error occurred during writing
+    #[cfg(feature = "std")]
     IoError(std::io::Error),
+
+    /// An io error occurred during writing (Should be used in no_std cases instead of IoError)
+    Write(alloc::string::String),
 }
 
+#[cfg(feature = "std")]
 impl From<std::io::Error> for EncodingError {
     fn from(err: std::io::Error) -> EncodingError {
         EncodingError::IoError(err)
@@ -30,7 +36,7 @@ impl From<std::io::Error> for EncodingError {
 }
 
 impl Display for EncodingError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut alloc::fmt::Formatter<'_>) -> alloc::fmt::Result {
         use EncodingError::*;
         match self {
             InvalidAppSegment(nr) => write!(
@@ -60,11 +66,14 @@ impl Display for EncodingError {
                 width,
                 height
             ),
+            #[cfg(feature = "std")]
             IoError(err) => err.fmt(f),
+            Write(err) => write!(f, "{}", err),
         }
     }
 }
 
+#[cfg(feature = "std")]
 impl Error for EncodingError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {

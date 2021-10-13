@@ -11,8 +11,9 @@ readme = "README.md"
 repository = "https://github.com/vstroebel/jpeg-encoder"
 
 [features]
-default = []
+default = ["std"]
 simd = []
+std = []
 
 [dependencies]
 

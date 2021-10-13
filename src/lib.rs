@@ -22,6 +22,11 @@
 //! # Ok(())
 //! # }
 
+#![no_std]
+
+#[cfg(feature = "std")]
+extern crate std;
+
 extern crate core;
 extern crate alloc;
 
@@ -36,7 +41,7 @@ mod error;
 #[cfg(all(feature = "simd", any(target_arch = "x86", target_arch = "x86_64")))]
 mod avx2;
 
-pub use writer::Density;
+pub use writer::{Density, JfifWrite};
 pub use encoder::{ColorType, JpegColorType, SamplingFactor, Encoder};
 pub use error::EncodingError;
 pub use quantization::QuantizationTableType;

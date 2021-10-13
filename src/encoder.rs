@@ -1,4 +1,4 @@
-use crate::writer::{JfifWriter, ZIGZAG};
+use crate::writer::{JfifWrite, JfifWriter, ZIGZAG};
 use crate::fdct::fdct;
 use crate::marker::Marker;
 use crate::huffman::{HuffmanTable, CodingClass};
@@ -9,8 +9,13 @@ use crate::{Density, EncodingError};
 use alloc::vec;
 use alloc::vec::Vec;
 
-use std::io::{Write, BufWriter};
+#[cfg(feature = "std")]
+use std::io::BufWriter;
+
+#[cfg(feature = "std")]
 use std::fs::File;
+
+#[cfg(feature = "std")]
 use std::path::Path;
 
 /// # Color types used in encoding
@@ -184,7 +189,7 @@ macro_rules! add_component {
 }
 
 /// # The JPEG encoder
-pub struct Encoder<W: Write> {
+pub struct Encoder<W: JfifWrite> {
     writer: JfifWriter<W>,
     density: Density,
     quality: u8,
@@ -204,7 +209,7 @@ pub struct Encoder<W: Write> {
     app_segments: Vec<(u8, Vec<u8>)>,
 }
 
-impl<W: Write> Encoder<W> {
+impl<W: JfifWrite> Encoder<W> {
     /// Create a new encoder with the given quality
     ///
     /// The quality must be between 1 and 100 where 100 is the highest image quality.<br>
@@ -396,8 +401,8 @@ impl<W: Write> Encoder<W> {
         }
 
         #[cfg(all(feature = "simd", any(target_arch = "x86", target_arch = "x86_64")))]
-            {
-                if is_x86_feature_detected!("avx2") {
+        {
+            if std::is_x86_feature_detected!("avx2") {
                     use crate::avx2::*;
 
                     return match color_type {
@@ -436,7 +441,7 @@ impl<W: Write> Encoder<W> {
     ) -> Result<(), EncodingError> {
         #[cfg(all(feature = "simd", any(target_arch = "x86", target_arch = "x86_64")))]
             {
-                if is_x86_feature_detected!("avx2") {
+                if std::is_x86_feature_detected!("avx2") {
                     use crate::avx2::*;
                     return self.encode_image_internal::<_, AVX2Operations>(image);
                 }
@@ -1084,6 +1089,7 @@ impl<W: Write> Encoder<W> {
     }
 }
 
+#[cfg(feature = "std")]
 impl Encoder<BufWriter<File>> {
     /// Create a new decoder that writes into a file
     ///
