@@ -4,9 +4,7 @@
 [![crates.io badge](https://img.shields.io/crates/v/jpeg-encoder.svg)](https://crates.io/crates/jpeg-encoder/)
 [![Rust](https://github.com/vstroebel/jpeg-encoder/actions/workflows/rust.yml/badge.svg)](https://github.com/vstroebel/jpeg-encoder/actions/workflows/rust.yml)
 
-JPEG encoder written in Rust
-
-## Features
+A JPEG encoder written in Rust featuring:
 
 - Baseline and progressive compression
 - Chroma subsampling
@@ -35,6 +33,10 @@ let mut encoder = Encoder::new_file("some.jpeg", 100)?;
 // Encode the data with dimension 2x2
 encoder.encode(&data, 2, 2, ColorType::Rgb)?;
 ```
+
+## Crate features
+- std (default): Enables functionality dependent on the std lib
+- simd: Enables SIMD optimizations (only AVX2 as for now)
 
 ## Minimum Supported Version of Rust (MSRV)
 
