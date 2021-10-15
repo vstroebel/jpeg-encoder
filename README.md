@@ -36,8 +36,8 @@ encoder.encode(&data, 2, 2, ColorType::Rgb)?;
 ```
 
 ## Crate features
-- std (default): Enables functionality dependent on the std lib
-- simd: Enables SIMD optimizations (only AVX2 as for now)
+- `std` (default): Enables functionality dependent on the std lib
+- `simd`: Enables SIMD optimizations (implies `std` and only AVX2 as for now)
 
 ## Minimum Supported Version of Rust (MSRV)
 

@@ -12,7 +12,7 @@ repository = "https://github.com/vstroebel/jpeg-encoder"
 
 [features]
 default = ["std"]
-simd = []
+simd = ["std"]
 std = []
 
 [dependencies]
