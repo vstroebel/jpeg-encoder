@@ -41,3 +41,15 @@ name = "encode_rgb_custom_q_table"
 path = "fuzz_targets/encode_rgb_custom_q_table.rs"
 test = false
 doc = false
+
+[[bin]]
+name = "encode_rgb_subsampled"
+path = "fuzz_targets/encode_rgb_subsampled.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "encode_rgb_progressive"
+path = "fuzz_targets/encode_rgb_progressive.rs"
+test = false
+doc = false
