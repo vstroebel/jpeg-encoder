@@ -46,7 +46,7 @@ pub fn cmyk_to_ycck(c: u8, m: u8, y: u8, k: u8) -> (u8, u8, u8, u8) {
 /// can create their own buffer implementations.
 ///
 /// ## Example: ImageBuffer implementation for RgbImage from the `image` crate
-/// ```no_run
+/// ```no_compile
 /// use image::RgbImage;
 /// use jpeg_encoder::{ImageBuffer, JpegColorType, rgb_to_ycbcr};
 ///
