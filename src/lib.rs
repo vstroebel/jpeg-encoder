@@ -59,13 +59,15 @@ mod tests {
     use alloc::vec::Vec;
 
     fn create_test_img_rgb() -> (Vec<u8>, u16, u16) {
-        let width = 255;
+        // Ensure size which which ensures an odd MCU count per row to test chroma subsampling
+        let width = 258;
         let height = 128;
 
         let mut data = Vec::with_capacity(width * height * 3);
 
         for y in 0..height {
             for x in 0..width {
+                let x = x.min(255);
                 data.push(x as u8);
                 data.push((y * 2) as u8);
                 data.push(((x + y * 2) / 2) as u8);
@@ -76,13 +78,14 @@ mod tests {
     }
 
     fn create_test_img_gray() -> (Vec<u8>, u16, u16) {
-        let width = 255;
+        let width = 258;
         let height = 128;
 
         let mut data = Vec::with_capacity(width * height);
 
         for y in 0..height {
             for x in 0..width {
+                let x = x.min(255);
                 let (y, _, _) = rgb_to_ycbcr(x as u8, (y * 2) as u8, ((x + y * 2) / 2) as u8);
                 data.push(y);
             }
@@ -92,13 +95,14 @@ mod tests {
     }
 
     fn create_test_img_cmyk() -> (Vec<u8>, u16, u16) {
-        let width = 255;
+        let width = 258;
         let height = 192;
 
         let mut data = Vec::with_capacity(width * height * 4);
 
         for y in 0..height {
             for x in 0..width {
+                let x = x.min(255);
                 data.push(x as u8);
                 data.push((y * 3 / 2) as u8);
                 data.push(((x + y * 3 / 2) / 2) as u8);
