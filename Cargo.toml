@@ -19,7 +19,7 @@ std = []
 
 [dev-dependencies]
 image = { version = "0.23", default-features = false }
-jpeg-decoder = "0.1.22"
+jpeg-decoder = "0.2"
 criterion = "0.3"
 
 [profile.dev]
