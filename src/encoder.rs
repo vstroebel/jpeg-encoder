@@ -969,14 +969,20 @@ impl<W: JfifWrite> Encoder<W> {
             }
         }
 
+        let num_cols = ceil_div(usize::from(width), 8);
+        let num_rows = ceil_div(usize::from(height), 8);
+
+        debug_assert!(num_cols > 0);
+        debug_assert!(num_rows > 0);
+
         let mut blocks: [Vec<_>; 4] = self.init_block_buffers(buffer_size / 64);
 
         for (i, component) in self.components.iter().enumerate() {
             let h_scale = max_h_sampling as usize / component.horizontal_sampling_factor as usize;
             let v_scale = max_v_sampling as usize / component.vertical_sampling_factor as usize;
 
-            let cols = num_cols as usize / h_scale;
-            let rows = num_rows as usize / v_scale;
+            let cols = ceil_div(num_cols as usize , h_scale);
+            let rows = ceil_div(num_rows as usize , v_scale);
 
             debug_assert!(cols > 0);
             debug_assert!(rows > 0);
