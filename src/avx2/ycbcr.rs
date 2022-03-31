@@ -70,7 +70,7 @@ macro_rules! ycbcr_image_avx2 {
                     let yb = _mm256_mullo_epi32(ymulb, b);
 
                     let y = _mm256_add_epi32(_mm256_add_epi32(yr, yg), yb);
-                    let y = _mm256_add_epi32(y, _mm256_set1_epi32(1 << 15));
+                    let y = _mm256_add_epi32(y, _mm256_set1_epi32(0x7FFF));
                     let y = _mm256_srli_epi32(y, 16);
                     let y: [i32; 8] = core::mem::transmute(y);
 
@@ -80,7 +80,7 @@ macro_rules! ycbcr_image_avx2 {
 
                     let cb = _mm256_add_epi32(_mm256_sub_epi32(cbr, cbg), cbb);
                     let cb = _mm256_add_epi32(cb, _mm256_set1_epi32(128 << 16));
-                    let cb = _mm256_add_epi32(cb, _mm256_set1_epi32(1 << 15));
+                    let cb = _mm256_add_epi32(cb, _mm256_set1_epi32(0x7FFF));
                     let cb = _mm256_srli_epi32(cb, 16);
                     let cb: [i32; 8] = core::mem::transmute(cb);
 
@@ -90,7 +90,7 @@ macro_rules! ycbcr_image_avx2 {
 
                     let cr = _mm256_sub_epi32(_mm256_sub_epi32(crr, crg), crb);
                     let cr = _mm256_add_epi32(cr, _mm256_set1_epi32(128 << 16));
-                    let cr = _mm256_add_epi32(cr, _mm256_set1_epi32(1 << 15));
+                    let cr = _mm256_add_epi32(cr, _mm256_set1_epi32(0x7FFF));
                     let cr = _mm256_srli_epi32(cr, 16);
                     let cr: [i32; 8] = core::mem::transmute(cr);
 
