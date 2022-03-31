@@ -23,9 +23,9 @@ pub fn rgb_to_ycbcr(r: u8, g: u8, b: u8) -> (u8, u8, u8) {
     let cb = -11059 * r - 21709 * g + 32768 * b + (128 << 16);
     let cr = 32768 * r - 27439 * g - 5329 * b + (128 << 16);
 
-    let y = (y + (1 << 15)) >> 16;
-    let cb = (cb + (1 << 15)) >> 16;
-    let cr = (cr + (1 << 15)) >> 16;
+    let y = (y + 0x7FFF) >> 16;
+    let cb = (cb + 0x7FFF) >> 16;
+    let cr = (cr + 0x7FFF) >> 16;
 
     (y as u8, cb as u8, cr as u8)
 }
@@ -287,6 +287,13 @@ mod tests {
 
     #[test]
     fn test_rgb_to_ycbcr() {
+
+        assert_rgb_to_ycbcr([0, 0, 0], [0, 128, 128]);
+        assert_rgb_to_ycbcr([255, 255, 255], [255, 128, 128]);
+        assert_rgb_to_ycbcr([255, 0, 0], [76, 85, 255]);
+        assert_rgb_to_ycbcr([0, 255, 0], [150, 44, 21]);
+        assert_rgb_to_ycbcr([0, 0, 255], [29, 255, 107]);
+
         // Values taken from libjpeg for a common image
 
         assert_rgb_to_ycbcr([59, 109, 6], [82, 85, 111]);

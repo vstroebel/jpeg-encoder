@@ -77,6 +77,26 @@ mod tests {
         (data, width as u16, height as u16)
     }
 
+    fn create_test_img_rgba() -> (Vec<u8>, u16, u16) {
+        // Ensure size which which ensures an odd MCU count per row to test chroma subsampling
+        let width = 258;
+        let height = 128;
+
+        let mut data = Vec::with_capacity(width * height * 3);
+
+        for y in 0..height {
+            for x in 0..width {
+                let x = x.min(255);
+                data.push(x as u8);
+                data.push((y * 2) as u8);
+                data.push(((x + y * 2) / 2) as u8);
+                data.push(x as u8);
+            }
+        }
+
+        (data, width as u16, height as u16)
+    }
+
     fn create_test_img_gray() -> (Vec<u8>, u16, u16) {
         let width = 258;
         let height = 128;
@@ -180,6 +200,21 @@ mod tests {
         encoder
             .encode(&data, width, height, ColorType::Rgb)
             .unwrap();
+
+        check_result(data, width, height, &mut result, PixelFormat::RGB24);
+    }
+
+    #[test]
+    fn test_rgba_80() {
+        let (data, width, height) = create_test_img_rgba();
+
+        let mut result = Vec::new();
+        let encoder = Encoder::new(&mut result, 80);
+        encoder
+            .encode(&data, width, height, ColorType::Rgba)
+            .unwrap();
+
+        let (data, width, height) = create_test_img_rgb();
 
         check_result(data, width, height, &mut result, PixelFormat::RGB24);
     }
