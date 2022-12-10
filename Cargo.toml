@@ -18,8 +18,8 @@ std = []
 [dependencies]
 
 [dev-dependencies]
-jpeg-decoder = "0.2"
-criterion = "0.3"
+jpeg-decoder = "0.3"
+criterion = "0.4"
 
 [profile.dev]
 opt-level = 1
