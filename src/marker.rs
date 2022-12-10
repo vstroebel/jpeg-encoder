@@ -1,7 +1,7 @@
 #![allow(clippy::upper_case_acronyms)]
 
 // Table B.1
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Marker {
     ZERO,
     /// Start Of Frame markers
@@ -44,7 +44,7 @@ pub enum Marker {
     FILL,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SOFType {
     /// SOF(0)
     BaselineDCT,
