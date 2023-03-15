@@ -594,8 +594,8 @@ impl<W: JfifWrite> Encoder<W> {
         q_tables: &[QuantizationTable; 2],
     ) -> Result<(), EncodingError> {
         self.writer.write_frame_header(
-            image.width() as u16,
-            image.height() as u16,
+            image.width(),
+            image.height(),
             &self.components,
             self.progressive_scans.is_some(),
         )?;
@@ -671,8 +671,8 @@ impl<W: JfifWrite> Encoder<W> {
         let num_cols = ceil_div(usize::from(width), 8 * max_h_sampling);
         let num_rows = ceil_div(usize::from(height), 8 * max_v_sampling);
 
-        let buffer_width = (num_cols * 8 * max_h_sampling) as usize;
-        let buffer_size = buffer_width * 8 * max_v_sampling as usize;
+        let buffer_width = num_cols * 8 * max_h_sampling;
+        let buffer_size = buffer_width * 8 * max_v_sampling;
 
         let mut row: [Vec<_>; 4] = self.init_rows(buffer_size);
 
@@ -719,11 +719,11 @@ impl<W: JfifWrite> Encoder<W> {
                         for h_offset in 0..component.horizontal_sampling_factor as usize {
                             let mut block = get_block(
                                 &row[i],
-                                (block_x as usize) * 8 * max_h_sampling as usize + (h_offset * 8),
+                                block_x * 8 * max_h_sampling + (h_offset * 8),
                                 v_offset * 8,
-                                max_h_sampling as usize
+                                max_h_sampling
                                     / component.horizontal_sampling_factor as usize,
-                                max_v_sampling as usize
+                                max_v_sampling
                                     / component.vertical_sampling_factor as usize,
                                 buffer_width,
                             );
@@ -950,8 +950,8 @@ impl<W: JfifWrite> Encoder<W> {
         debug_assert!(num_cols > 0);
         debug_assert!(num_rows > 0);
 
-        let buffer_width = (num_cols * 8) as usize;
-        let buffer_size = (num_cols * num_rows * 64) as usize;
+        let buffer_width = num_cols * 8;
+        let buffer_size = num_cols * num_rows * 64;
 
         let mut row: [Vec<_>; 4] = self.init_rows(buffer_size);
 
@@ -978,11 +978,11 @@ impl<W: JfifWrite> Encoder<W> {
         let mut blocks: [Vec<_>; 4] = self.init_block_buffers(buffer_size / 64);
 
         for (i, component) in self.components.iter().enumerate() {
-            let h_scale = max_h_sampling as usize / component.horizontal_sampling_factor as usize;
-            let v_scale = max_v_sampling as usize / component.vertical_sampling_factor as usize;
+            let h_scale = max_h_sampling / component.horizontal_sampling_factor as usize;
+            let v_scale = max_v_sampling / component.vertical_sampling_factor as usize;
 
-            let cols = ceil_div(num_cols as usize , h_scale);
-            let rows = ceil_div(num_rows as usize , v_scale);
+            let cols = ceil_div(num_cols, h_scale);
+            let rows = ceil_div(num_rows, v_scale);
 
             debug_assert!(cols > 0);
             debug_assert!(rows > 0);
@@ -1237,7 +1237,6 @@ impl Operations for DefaultOperations {}
 
 #[cfg(test)]
 mod tests {
-
     use alloc::vec;
 
     use crate::encoder::get_num_bits;

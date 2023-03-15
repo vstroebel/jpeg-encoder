@@ -132,7 +132,7 @@ impl<W: JfifWrite> JfifWriter<W> {
         let size = size as i8;
         let value = value as usize;
 
-        self.free_bits -= size as i8;
+        self.free_bits -= size;
 
         if self.free_bits < 0 {
             let free_bits = self.free_bits;
@@ -210,7 +210,7 @@ impl<W: JfifWrite> JfifWriter<W> {
         self.write_marker(Marker::DHT)?;
         self.write_u16(2 + 1 + 16 + table.values().len() as u16)?;
 
-        self.write_u8(((class as u8) << 4) | destination as u8)?;
+        self.write_u8(((class as u8) << 4) | destination)?;
         self.write(table.length())?;
         self.write(table.values())?;
 
@@ -239,7 +239,7 @@ impl<W: JfifWrite> JfifWriter<W> {
         self.write_marker(Marker::DQT)?;
         self.write_u16(2 + 1 + 64)?;
 
-        self.write_u8(destination as u8)?;
+        self.write_u8(destination)?;
 
         for &v in ZIGZAG.iter() {
             self.write_u8(table.get(v as usize))?;
@@ -382,7 +382,7 @@ impl<W: JfifWrite> JfifWriter<W> {
         self.write_u8(components.len() as u8)?;
 
         for component in components.iter() {
-            self.write_u8(component.id as u8)?;
+            self.write_u8(component.id)?;
             self.write_u8((component.dc_huffman_table << 4) | component.ac_huffman_table)?;
         }
 
