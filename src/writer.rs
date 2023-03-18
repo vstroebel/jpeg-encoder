@@ -403,11 +403,15 @@ impl<W: JfifWrite> JfifWriter<W> {
 
 #[inline]
 pub(crate) fn get_code(value: i16) -> (u8, u16) {
-    let sign = value >> 15;
-    let temp = value + sign;
-    let temp2 = (sign ^ temp) as u16;
+    let temp = value - (value.is_negative() as i16);
+    let temp2 = value.abs();
 
-    let num_bits = 16 - temp2.leading_zeros() as u16;
+    /*
+     * Doing this instead of 16 - temp2.leading_zeros()
+     * Gives the compiler the information that leadings_zeros
+     * is always called on a non zero value, which removes a branch on x86
+     */
+    let num_bits = 15 - (temp2 << 1 | 1).leading_zeros() as u16;
 
     let coefficient = temp & ((1 << num_bits as usize) - 1);
 
