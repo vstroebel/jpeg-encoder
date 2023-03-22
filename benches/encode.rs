@@ -11,9 +11,43 @@ fn create_bench_img() -> (Vec<u8>, u16, u16) {
 
     for y in 0..height {
         for x in 0..width {
-            data.push((x % 256) as u8);
-            data.push((x % 256) as u8);
-            data.push(((x * y) % 256) as u8);
+            if (x * y) % 13 == 0 {
+                data.push(0);
+                data.push(0);
+                data.push(0);
+            } else if (x * y) % 17 == 0 {
+                data.push(255);
+                data.push(255);
+                data.push(255);
+            } else if (x * y) % 19 == 0 {
+                data.push(255);
+                data.push(0);
+                data.push(0);
+            } else if (x * y) % 21 == 0 {
+                data.push(0);
+                data.push(0);
+                data.push(255);
+            } else if (x * y) % 23 == 0 {
+                data.push(0);
+                data.push(255);
+                data.push(0);
+            } else if (x * y) % 25 == 0 {
+                data.push(96);
+                data.push(255);
+                data.push(96);
+            } else if (x * y) % 27 == 0 {
+                data.push(255);
+                data.push(96);
+                data.push(96);
+            } else if (x * y) % 29 == 0 {
+                data.push(96);
+                data.push(96);
+                data.push(255);
+            } else {
+                data.push((x % 256) as u8);
+                data.push((x % 256) as u8);
+                data.push(((x * y) % 256) as u8);
+            }
         }
     }
 
@@ -55,7 +89,8 @@ fn criterion_benchmark(c: &mut Criterion) {
     let (data, width, height) = create_bench_img();
 
     let mut group = c.benchmark_group("encode rgb");
-    group.measurement_time(Duration::from_secs(25));
+    group.measurement_time(Duration::from_secs(45));
+    group.warm_up_time(Duration::from_secs(10));
 
     group.bench_function("encode rgb 100", |b| {
         b.iter(|| {
@@ -109,6 +144,35 @@ fn criterion_benchmark(c: &mut Criterion) {
                 black_box(width),
                 black_box(height),
             )
+        })
+    });
+
+    group.bench_function("encode rgb mixed", |b| {
+        b.iter(|| {
+            encode_rgb_100(
+                black_box(&mut res),
+                black_box(&data),
+                black_box(width),
+                black_box(height),
+            );
+            encode_rgb_4x1(
+                black_box(&mut res),
+                black_box(&data),
+                black_box(width),
+                black_box(height),
+            );
+            encode_rgb_progressive(
+                black_box(&mut res),
+                black_box(&data),
+                black_box(width),
+                black_box(height),
+            );
+            encode_rgb_optimized_progressive(
+                black_box(&mut res),
+                black_box(&data),
+                black_box(width),
+                black_box(height),
+            );
         })
     });
 
