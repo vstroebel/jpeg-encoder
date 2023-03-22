@@ -76,14 +76,17 @@ impl<W: JfifWrite> JfifWriter<W> {
         }
     }
 
+    #[inline(always)]
     pub fn write(&mut self, buf: &[u8]) -> Result<(), EncodingError> {
         self.w.write_all(buf)
     }
 
+    #[inline(always)]
     pub fn write_u8(&mut self, value: u8) -> Result<(), EncodingError> {
         self.w.write_all(&[value])
     }
 
+    #[inline(always)]
     pub fn write_u16(&mut self, value: u16) -> Result<(), EncodingError> {
         self.w.write_all(&value.to_be_bytes())
     }
@@ -99,15 +102,21 @@ impl<W: JfifWrite> JfifWriter<W> {
 
     pub fn flush_bit_buffer(&mut self) -> Result<(), EncodingError> {
         while self.free_bits <= (BUFFER_SIZE as i8 - 8) {
-            let value = (self.bit_buffer >> (BUFFER_SIZE as i8 - 8 - self.free_bits)) & 0xFF;
-
-            self.write_u8(value as u8)?;
-
-            if value == 0xFF {
-                self.write_u8(0x00)?;
-            }
-
+            self.flush_byte_from_bit_buffer(self.free_bits)?;
             self.free_bits += 8;
+        }
+
+        Ok(())
+    }
+
+    #[inline(always)]
+    fn flush_byte_from_bit_buffer(&mut self, free_bits: i8) -> Result<(), EncodingError> {
+        let value = (self.bit_buffer >> (BUFFER_SIZE as i8 - 8 - free_bits)) & 0xFF;
+
+        self.write_u8(value as u8)?;
+
+        if value == 0xFF {
+            self.write_u8(0x00)?;
         }
 
         Ok(())
@@ -121,9 +130,11 @@ impl<W: JfifWrite> JfifWriter<W> {
             & !(self.bit_buffer.wrapping_add(0x0101010101010101)))
             != 0
         {
-            self.flush_bit_buffer()
+            for i in 0..(BUFFER_SIZE / 8) {
+                self.flush_byte_from_bit_buffer((i * 8) as i8)?;
+            }
+            Ok(())
         } else {
-            self.free_bits = 0;
             self.w.write_all(&self.bit_buffer.to_be_bytes())
         }
     }
@@ -132,16 +143,15 @@ impl<W: JfifWrite> JfifWriter<W> {
         let size = size as i8;
         let value = value as usize;
 
-        self.free_bits -= size;
+        let free_bits = self.free_bits - size;
 
-        if self.free_bits < 0 {
-            let free_bits = self.free_bits;
+        if free_bits < 0 {
             self.bit_buffer = (self.bit_buffer << (size + free_bits)) | (value >> -free_bits);
-            self.free_bits = 0;
             self.write_bit_buffer()?;
             self.bit_buffer = value;
             self.free_bits = free_bits + BUFFER_SIZE as i8;
         } else {
+            self.free_bits = free_bits;
             self.bit_buffer = (self.bit_buffer << size) | value;
         }
         Ok(())
