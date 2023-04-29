@@ -349,6 +349,10 @@ impl<W: JfifWrite> Encoder<W> {
     ///
     /// Segment numbers need to be in the range between 1 and 15<br>
     /// The maximum allowed data length is 2^16 - 2 bytes.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the segment number is invalid or data exceeds the allowed size
     pub fn add_app_segment(&mut self, segment_nr: u8, data: &[u8]) -> Result<(), EncodingError> {
         if segment_nr == 0 || segment_nr > 15 {
             Err(EncodingError::InvalidAppSegment(segment_nr))
@@ -363,6 +367,10 @@ impl<W: JfifWrite> Encoder<W> {
     /// Add an ICC profile
     ///
     /// The maximum allowed data length is 16,707,345 bytes.
+    ///
+    /// # Errors
+    ///
+    /// Returns an Error if the data exceeds the maximum size for the ICC profile
     pub fn add_icc_profile(&mut self, data: &[u8]) -> Result<(), EncodingError> {
         // Based on https://www.color.org/ICC_Minor_Revision_for_Web.pdf
         // B.4  Embedding ICC profiles in JFIF files
@@ -1165,6 +1173,10 @@ impl Encoder<BufWriter<File>> {
     /// Create a new decoder that writes into a file
     ///
     /// See [new](Encoder::new) for further information.
+    ///
+    /// # Errors
+    ///
+    /// Returns an `IoError(std::io::Error)` if the file can't be created
     pub fn new_file<P: AsRef<Path>>(
         path: P,
         quality: u8,

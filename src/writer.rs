@@ -34,6 +34,9 @@ const BUFFER_SIZE: usize = core::mem::size_of::<usize>() * 8;
 /// This trait is implemented for `std::io::Write` if the `std` feature is enabled.
 pub trait JfifWrite {
     /// Writes the whole buffer. The behavior must be identical to std::io::Write::write_all
+    /// # Errors
+    ///
+    /// Return an error if the data can't be written
     fn write_all(&mut self, buf: &[u8]) -> Result<(), EncodingError>;
 }
 
