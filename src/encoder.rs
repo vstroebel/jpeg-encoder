@@ -35,7 +35,7 @@ pub enum JpegColorType {
 }
 
 impl JpegColorType {
-    pub(crate) fn get_num_components(&self) -> usize {
+    pub(crate) fn get_num_components(self) -> usize {
         use JpegColorType::*;
 
         match self {
@@ -81,7 +81,7 @@ pub enum ColorType {
 }
 
 impl ColorType {
-    pub(crate) fn get_bytes_per_pixel(&self) -> usize {
+    pub(crate) fn get_bytes_per_pixel(self) -> usize {
         use ColorType::*;
 
         match self {
@@ -152,12 +152,12 @@ impl SamplingFactor {
         }
     }
 
-    pub(crate) fn get_sampling_factors(&self) -> (u8, u8) {
-        let value = *self as u8;
+    pub(crate) fn get_sampling_factors(self) -> (u8, u8) {
+        let value = self as u8;
         ((value >> 4) & 0x07, value & 0xf)
     }
 
-    pub(crate) fn supports_interleaved(&self) -> bool {
+    pub(crate) fn supports_interleaved(self) -> bool {
         use SamplingFactor::*;
 
         // Interleaved mode is only supported with h/v sampling factors of 1 or 2.
