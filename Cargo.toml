@@ -18,7 +18,7 @@ std = []
 [dependencies]
 
 [dev-dependencies]
-jpeg-decoder = "0.3"
+jpeg-decoder = { version = "0.3", default-features = false }
 criterion = "0.5"
 
 [profile.dev]
