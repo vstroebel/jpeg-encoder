@@ -19,7 +19,7 @@ std = []
 
 [dev-dependencies]
 jpeg-decoder = "0.3"
-criterion = "0.4"
+criterion = "0.5"
 
 [profile.dev]
 opt-level = 1
