@@ -1231,7 +1231,7 @@ fn get_num_bits(mut value: i16) -> u8 {
 pub(crate) trait Operations {
     #[inline(always)]
     fn fdct(data: &mut [i16; 64]) {
-        fdct(data)
+        fdct(data);
     }
 
     #[inline(always)]
