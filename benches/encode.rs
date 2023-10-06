@@ -85,7 +85,7 @@ fn encode_rgb_optimized_progressive(res: &mut Vec<u8>, data: &[u8], width: u16, 
 }
 
 fn criterion_benchmark(c: &mut Criterion) {
-    let mut res = Vec::with_capacity(2 * 1024 * 1024);
+    let mut res = Vec::with_capacity(32 * 1024 * 1024);
     let (data, width, height) = create_bench_img();
 
     let mut group = c.benchmark_group("encode rgb");
@@ -94,6 +94,7 @@ fn criterion_benchmark(c: &mut Criterion) {
 
     group.bench_function("encode rgb 100", |b| {
         b.iter(|| {
+            res.clear();
             encode_rgb_100(
                 black_box(&mut res),
                 black_box(&data),
@@ -105,6 +106,7 @@ fn criterion_benchmark(c: &mut Criterion) {
 
     group.bench_function("encode rgb 4x1", |b| {
         b.iter(|| {
+            res.clear();
             encode_rgb_4x1(
                 black_box(&mut res),
                 black_box(&data),
@@ -116,6 +118,7 @@ fn criterion_benchmark(c: &mut Criterion) {
 
     group.bench_function("encode rgb progressive", |b| {
         b.iter(|| {
+            res.clear();
             encode_rgb_progressive(
                 black_box(&mut res),
                 black_box(&data),
@@ -127,6 +130,7 @@ fn criterion_benchmark(c: &mut Criterion) {
 
     group.bench_function("encode rgb optimized", |b| {
         b.iter(|| {
+            res.clear();
             encode_rgb_optimized(
                 black_box(&mut res),
                 black_box(&data),
@@ -138,6 +142,7 @@ fn criterion_benchmark(c: &mut Criterion) {
 
     group.bench_function("encode rgb optimized progressive", |b| {
         b.iter(|| {
+            res.clear();
             encode_rgb_optimized_progressive(
                 black_box(&mut res),
                 black_box(&data),
@@ -149,24 +154,28 @@ fn criterion_benchmark(c: &mut Criterion) {
 
     group.bench_function("encode rgb mixed", |b| {
         b.iter(|| {
+            res.clear();
             encode_rgb_100(
                 black_box(&mut res),
                 black_box(&data),
                 black_box(width),
                 black_box(height),
             );
+            res.clear();
             encode_rgb_4x1(
                 black_box(&mut res),
                 black_box(&data),
                 black_box(width),
                 black_box(height),
             );
+            res.clear();
             encode_rgb_progressive(
                 black_box(&mut res),
                 black_box(&data),
                 black_box(width),
                 black_box(height),
             );
+            res.clear();
             encode_rgb_optimized_progressive(
                 black_box(&mut res),
                 black_box(&data),
