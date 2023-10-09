@@ -19,7 +19,7 @@ std = []
 
 [dev-dependencies]
 jpeg-decoder = { version = "0.3", default-features = false }
-criterion = "0.5"
+#criterion = { version = "0.5", default-features = false, features = ["plotters", "cargo_bench_support"]}
 
 [profile.dev]
 opt-level = 1
