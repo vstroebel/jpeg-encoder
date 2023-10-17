@@ -20,11 +20,11 @@ jobs:
 
     steps:
     - name: Installing Rust toolchain
-      uses: actions-rs/toolchain@v1
+      uses: dtolnay/rust-toolchain@stable
       with:
           override: true
           toolchain: ${{ matrix.rust }}
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
     - name: Build
       run: cargo build --verbose --features simd
     - name: Run tests
@@ -40,11 +40,11 @@ jobs:
 
     steps:
       - name: Installing Rust toolchain
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@stable
         with:
           override: true
           toolchain: ${{ matrix.rust }}
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - name: Build
         run: cargo build --verbose --no-default-features
       - name: Run tests
