@@ -1,0 +1,28 @@
+[package]
+name = "jpeg-encoder-bench"
+version = "0.0.0"
+authors = ["Volker Ströbel <volkerstroebel@mysurdity.de>"]
+edition = "2021"
+publish = false
+license = "MIT OR Apache-2.0"
+
+[workspace]
+members = ["."]
+
+[features]
+default = ["std"]
+simd = ["std"]
+std = []
+
+[dependencies]
+jpeg-encoder = {path = "../"}
+
+[dev-dependencies]
+criterion = { version = "0.5", default-features = false, features = ["plotters", "cargo_bench_support"]}
+
+[profile.dev]
+opt-level = 1
+
+[[bench]]
+name = "encode"
+harness = false
