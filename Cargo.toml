@@ -19,11 +19,6 @@ std = []
 
 [dev-dependencies]
 jpeg-decoder = { version = "0.3", default-features = false }
-#criterion = { version = "0.5", default-features = false, features = ["plotters", "cargo_bench_support"]}
 
 [profile.dev]
 opt-level = 1
-
-[[bench]]
-name = "encode"
-harness = false
