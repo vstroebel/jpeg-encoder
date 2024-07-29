@@ -250,7 +250,7 @@ impl QuantizationTable {
     fn get_user_table(table: &[u16; 64]) -> [NonZeroU16; 64] {
         let mut q_table = [NonZeroU16::new(1).unwrap(); 64];
         for (i, &v) in table.iter().enumerate() {
-            q_table[i] = match NonZeroU16::new(v.max(1).min(2 << 10) << 3) {
+            q_table[i] = match NonZeroU16::new(v.clamp(1, 2 << 10) << 3) {
                 Some(v) => v,
                 None => panic!("Invalid quantization table value: {}", v),
             };
@@ -259,7 +259,7 @@ impl QuantizationTable {
     }
 
     fn get_with_quality(table: &[u16; 64], quality: u8) -> [NonZeroU16; 64] {
-        let quality = quality.max(1).min(100) as u32;
+        let quality = quality.clamp(1, 100) as u32;
 
         let scale = if quality < 50 {
             5000 / quality
@@ -274,7 +274,7 @@ impl QuantizationTable {
 
             let v = (v * scale + 50) / 100;
 
-            let v = v.max(1).min(255) as u16;
+            let v = v.clamp(1, 255) as u16;
 
             // Table values are premultiplied with 8 because dct is scaled by 8
             q_table[i] = NonZeroU16::new(v << 3).unwrap();
