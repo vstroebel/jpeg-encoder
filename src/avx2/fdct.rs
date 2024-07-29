@@ -412,7 +412,7 @@ unsafe fn fdct_avx2_internal(data: &mut [i16; 64]) {
         (t1, t2, t3, t4)
     }
 
-    let in_data = core::mem::transmute(data.as_mut_ptr());
+    let in_data = core::mem::transmute::<*mut i16, *mut __m256i>(data.as_mut_ptr());
 
     let ymm4 = _mm256_loadu_si256(in_data);
     let ymm5 = _mm256_loadu_si256(in_data.add(1));
@@ -451,7 +451,7 @@ unsafe fn fdct_avx2_internal(data: &mut [i16; 64]) {
     let ymm6 = _mm256_permute2x128_si256(ymm0, ymm4, 0x31); // ymm6=data4_5
     let ymm7 = _mm256_permute2x128_si256(ymm2, ymm4, 0x21); // ymm7=data6_7
 
-    let out_data = core::mem::transmute(data.as_mut_ptr());
+    let out_data = core::mem::transmute::<*mut i16, *mut __m256i>(data.as_mut_ptr());
 
     _mm256_storeu_si256(out_data, ymm3);
     _mm256_storeu_si256(out_data.add(1), ymm5);
