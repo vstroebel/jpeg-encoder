@@ -32,8 +32,8 @@ test = false
 doc = false
 
 [[bin]]
-name = "encode_rgb_optimited"
-path = "fuzz_targets/encode_rgb_optimited.rs"
+name = "encode_rgb_optimized"
+path = "fuzz_targets/encode_rgb_optimized.rs"
 test = false
 doc = false
 
