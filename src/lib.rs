@@ -25,6 +25,8 @@
 #![no_std]
 #![cfg_attr(not(feature = "simd"), forbid(unsafe_code))]
 
+#![cfg_attr(feature = "nightly-portable-simd", feature(portable_simd))]
+
 #[cfg(feature = "std")]
 extern crate std;
 
@@ -33,6 +35,10 @@ extern crate core;
 
 #[cfg(all(feature = "simd", any(target_arch = "x86", target_arch = "x86_64")))]
 mod avx2;
+
+#[cfg(feature = "nightly-portable-simd")]
+mod std_simd;
+
 mod encoder;
 mod error;
 mod fdct;
