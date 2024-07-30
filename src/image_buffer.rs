@@ -113,11 +113,23 @@ impl<'a> ImageBuffer for GrayImage<'a> {
     }
 
     fn fill_buffers(&self, y: u16, buffers: &mut [Vec<u8>; 4]) {
-        for x in 0..self.width() {
-            let offset = usize::from(y) * usize::from(self.1) + usize::from(x);
-            buffers[0].push(self.0[offset + 0]);
+        let line = get_line(self.0, y, self.width(), 1);
+
+        for &pixel in line {
+            buffers[0].push(pixel);
         }
     }
+}
+
+#[inline(always)]
+fn get_line(data: &[u8], y: u16, width:u16, num_colors: usize) -> &[u8] {
+    let width= usize::from(width);
+    let y = usize::from(y);
+
+    let start = y *width * num_colors;
+    let end = start + width * num_colors;
+
+    &data[start..end]
 }
 
 macro_rules! ycbcr_image {
@@ -139,13 +151,13 @@ macro_rules! ycbcr_image {
 
             #[inline(always)]
             fn fill_buffers(&self, y: u16, buffers: &mut [Vec<u8>; 4]) {
-                for x in 0..self.width() {
-                    let offset =
-                        (usize::from(y) * usize::from(self.1) + usize::from(x)) * $num_colors;
+                let line = get_line(self.0, y, self.width(), $num_colors);
+
+                for pixel in line.chunks_exact($num_colors) {
                     let (y, cb, cr) = rgb_to_ycbcr(
-                        self.0[offset + $o1],
-                        self.0[offset + $o2],
-                        self.0[offset + $o3],
+                        pixel[$o1],
+                        pixel[$o2],
+                        pixel[$o3],
                     );
 
                     buffers[0].push(y);
@@ -178,12 +190,12 @@ impl<'a> ImageBuffer for YCbCrImage<'a> {
     }
 
     fn fill_buffers(&self, y: u16, buffers: &mut [Vec<u8>; 4]) {
-        for x in 0..self.width() {
-            let offset = (usize::from(y) * usize::from(self.1) + usize::from(x)) * 3;
+        let line = get_line(self.0, y, self.width(), 3);
 
-            buffers[0].push(self.0[offset + 0]);
-            buffers[1].push(self.0[offset + 1]);
-            buffers[2].push(self.0[offset + 2]);
+        for pixel in line.chunks_exact(3) {
+            buffers[0].push(pixel[0]);
+            buffers[1].push(pixel[1]);
+            buffers[2].push(pixel[2]);
         }
     }
 }
@@ -204,13 +216,13 @@ impl<'a> ImageBuffer for CmykImage<'a> {
     }
 
     fn fill_buffers(&self, y: u16, buffers: &mut [Vec<u8>; 4]) {
-        for x in 0..self.width() {
-            let offset = (usize::from(y) * usize::from(self.1) + usize::from(x)) * 4;
+        let line = get_line(self.0, y, self.width(), 4);
 
-            buffers[0].push(255 - self.0[offset + 0]);
-            buffers[1].push(255 - self.0[offset + 1]);
-            buffers[2].push(255 - self.0[offset + 2]);
-            buffers[3].push(255 - self.0[offset + 3]);
+        for pixel in line.chunks_exact(4) {
+            buffers[0].push(255 - pixel[0]);
+            buffers[1].push(255 - pixel[1]);
+            buffers[2].push(255 - pixel[2]);
+            buffers[3].push(255 - pixel[3]);
         }
     }
 }
@@ -231,14 +243,15 @@ impl<'a> ImageBuffer for CmykAsYcckImage<'a> {
     }
 
     fn fill_buffers(&self, y: u16, buffers: &mut [Vec<u8>; 4]) {
-        for x in 0..self.width() {
-            let offset = (usize::from(y) * usize::from(self.1) + usize::from(x)) * 4;
+        let line = get_line(self.0, y, self.width(), 4);
+
+        for pixel in line.chunks_exact(4) {
 
             let (y, cb, cr, k) = cmyk_to_ycck(
-                self.0[offset + 0],
-                self.0[offset + 1],
-                self.0[offset + 2],
-                self.0[offset + 3],
+                pixel[0],
+                pixel[1],
+                pixel[2],
+                pixel[3],
             );
 
             buffers[0].push(y);
@@ -265,13 +278,14 @@ impl<'a> ImageBuffer for YcckImage<'a> {
     }
 
     fn fill_buffers(&self, y: u16, buffers: &mut [Vec<u8>; 4]) {
-        for x in 0..self.width() {
-            let offset = (usize::from(y) * usize::from(self.1) + usize::from(x)) * 4;
+        let line = get_line(self.0, y, self.width(), 4);
 
-            buffers[0].push(self.0[offset + 0]);
-            buffers[1].push(self.0[offset + 1]);
-            buffers[2].push(self.0[offset + 2]);
-            buffers[3].push(self.0[offset + 3]);
+        for pixel in line.chunks_exact(4) {
+
+            buffers[0].push(pixel[0]);
+            buffers[1].push(pixel[1]);
+            buffers[2].push(pixel[2]);
+            buffers[3].push(pixel[3]);
         }
     }
 }
