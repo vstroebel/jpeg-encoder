@@ -1237,7 +1237,7 @@ pub(crate) trait Operations {
     #[inline(always)]
     fn quantize_block(block: &[i16; 64], q_block: &mut [i16; 64], table: &QuantizationTable) {
         for i in 0..64 {
-            let z = ZIGZAG[i] as usize;
+            let z = ZIGZAG[i] as usize & 0x3f;
             q_block[i] = table.quantize(block[z], z);
         }
     }
