@@ -9,13 +9,8 @@ license = "MIT OR Apache-2.0"
 [workspace]
 members = ["."]
 
-[features]
-default = ["std"]
-simd = ["std"]
-std = []
-
 [dependencies]
-jpeg-encoder = {path = "../"}
+jpeg-encoder = {path = ".."}
 
 [dev-dependencies]
 criterion = { version = "0.5", default-features = false, features = ["plotters", "cargo_bench_support"]}
