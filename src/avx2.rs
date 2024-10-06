@@ -2,7 +2,7 @@ mod fdct;
 mod ycbcr;
 
 use crate::encoder::Operations;
-pub(crate) use fdct::fdct_avx2;
+pub use fdct::fdct_avx2;
 pub(crate) use ycbcr::*;
 
 pub(crate) struct AVX2Operations;

@@ -9,8 +9,11 @@ license = "MIT OR Apache-2.0"
 [workspace]
 members = ["."]
 
+[features]
+simd = ["jpeg-encoder/simd"]
+
 [dependencies]
-jpeg-encoder = {path = ".."}
+jpeg-encoder = {path = "..", features = ["benchmark"]}
 
 [dev-dependencies]
 criterion = { version = "0.5", default-features = false, features = ["plotters", "cargo_bench_support"]}
@@ -20,4 +23,8 @@ opt-level = 1
 
 [[bench]]
 name = "encode"
+harness = false
+
+[[bench]]
+name = "fdct"
 harness = false

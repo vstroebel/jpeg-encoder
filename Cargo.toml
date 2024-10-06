@@ -16,6 +16,9 @@ default = ["std"]
 simd = ["std"]
 std = []
 
+# DO NOT USE THIS IN PRODUCTION. Expose several internal functions for benchmark purposes.
+benchmark = []
+
 [dependencies]
 
 [dev-dependencies]
