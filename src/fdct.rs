@@ -107,6 +107,8 @@ pub fn fdct(data: &mut [i16; 64]) {
     /* Note results are scaled up by sqrt(8) compared to a true DCT; */
     /* furthermore, we scale the results by 2**PASS1_BITS. */
 
+    let mut data2 = [0i32; 64];
+
     for y in 0..8 {
         let offset = y * 8;
 
@@ -128,18 +130,18 @@ pub fn fdct(data: &mut [i16; 64]) {
         let tmp11 = tmp1 + tmp2;
         let tmp12 = tmp1 - tmp2;
 
-        data[offset + 0] = into_el((tmp10 + tmp11) << PASS1_BITS);
-        data[offset + 4] = into_el((tmp10 - tmp11) << PASS1_BITS);
+        data2[offset + 0] = (tmp10 + tmp11) << PASS1_BITS;
+        data2[offset + 4] = (tmp10 - tmp11) << PASS1_BITS;
 
         let z1 = (tmp12 + tmp13) * FIX_0_541196100;
-        data[offset + 2] = into_el(descale(
+        data2[offset + 2] = descale(
             z1 + (tmp13 * FIX_0_765366865),
             CONST_BITS - PASS1_BITS,
-        ));
-        data[offset + 6] = into_el(descale(
+        );
+        data2[offset + 6] = descale(
             z1 + (tmp12 * -FIX_1_847759065),
             CONST_BITS - PASS1_BITS,
-        ));
+        );
 
         /* Odd part per figure 8 --- note paper omits factor of sqrt(2).
          * cK represents cos(K*pi/16).
@@ -164,10 +166,10 @@ pub fn fdct(data: &mut [i16; 64]) {
         let z3 = z3 + z5;
         let z4 = z4 + z5;
 
-        data[offset + 7] = into_el(descale(tmp4 + z1 + z3, CONST_BITS - PASS1_BITS));
-        data[offset + 5] = into_el(descale(tmp5 + z2 + z4, CONST_BITS - PASS1_BITS));
-        data[offset + 3] = into_el(descale(tmp6 + z2 + z3, CONST_BITS - PASS1_BITS));
-        data[offset + 1] = into_el(descale(tmp7 + z1 + z4, CONST_BITS - PASS1_BITS));
+        data2[offset + 7] = descale(tmp4 + z1 + z3, CONST_BITS - PASS1_BITS);
+        data2[offset + 5] = descale(tmp5 + z2 + z4, CONST_BITS - PASS1_BITS);
+        data2[offset + 3] = descale(tmp6 + z2 + z3, CONST_BITS - PASS1_BITS);
+        data2[offset + 1] = descale(tmp7 + z1 + z4, CONST_BITS - PASS1_BITS);
     }
 
     /* Pass 2: process columns.
@@ -176,14 +178,14 @@ pub fn fdct(data: &mut [i16; 64]) {
      */
 
     for x in 0..8 {
-        let tmp0 = i32::from(data[DCT_SIZE * 0 + x]) + i32::from(data[DCT_SIZE * 7 + x]);
-        let tmp7 = i32::from(data[DCT_SIZE * 0 + x]) - i32::from(data[DCT_SIZE * 7 + x]);
-        let tmp1 = i32::from(data[DCT_SIZE * 1 + x]) + i32::from(data[DCT_SIZE * 6 + x]);
-        let tmp6 = i32::from(data[DCT_SIZE * 1 + x]) - i32::from(data[DCT_SIZE * 6 + x]);
-        let tmp2 = i32::from(data[DCT_SIZE * 2 + x]) + i32::from(data[DCT_SIZE * 5 + x]);
-        let tmp5 = i32::from(data[DCT_SIZE * 2 + x]) - i32::from(data[DCT_SIZE * 5 + x]);
-        let tmp3 = i32::from(data[DCT_SIZE * 3 + x]) + i32::from(data[DCT_SIZE * 4 + x]);
-        let tmp4 = i32::from(data[DCT_SIZE * 3 + x]) - i32::from(data[DCT_SIZE * 4 + x]);
+        let tmp0 = data2[DCT_SIZE * 0 + x] + data2[DCT_SIZE * 7 + x];
+        let tmp7 = data2[DCT_SIZE * 0 + x] - data2[DCT_SIZE * 7 + x];
+        let tmp1 = data2[DCT_SIZE * 1 + x] + data2[DCT_SIZE * 6 + x];
+        let tmp6 = data2[DCT_SIZE * 1 + x] - data2[DCT_SIZE * 6 + x];
+        let tmp2 = data2[DCT_SIZE * 2 + x] + data2[DCT_SIZE * 5 + x];
+        let tmp5 = data2[DCT_SIZE * 2 + x] - data2[DCT_SIZE * 5 + x];
+        let tmp3 = data2[DCT_SIZE * 3 + x] + data2[DCT_SIZE * 4 + x];
+        let tmp4 = data2[DCT_SIZE * 3 + x] - data2[DCT_SIZE * 4 + x];
 
         /* Even part per LL&M figure 1 --- note that published figure is faulty;
          * rotator "sqrt(2)*c1" should be "sqrt(2)*c6".
