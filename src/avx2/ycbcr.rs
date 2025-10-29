@@ -21,7 +21,6 @@ macro_rules! ycbcr_image_avx2 {
         impl<'a> $name<'a> {
             #[target_feature(enable = "avx2")]
             fn fill_buffers_avx2(&self, y: u16, buffers: &mut [Vec<u8>; 4]) {
-
                 #[inline]
                 #[target_feature(enable = "avx2")]
                 fn load3(data: &[u8]) -> __m256i {
@@ -67,9 +66,7 @@ macro_rules! ycbcr_image_avx2 {
                 let crmulg = _mm256_set1_epi32(27439);
                 let crmulb = _mm256_set1_epi32(5329);
 
-                let mut data = &self
-                    .0
-                    [(y as usize * self.1 as usize * $num_colors)..];
+                let mut data = &self.0[(y as usize * self.1 as usize * $num_colors)..];
 
                 for _ in 0..self.width() / 8 {
                     let r = load3(&data[$o1..]);
@@ -130,8 +127,7 @@ macro_rules! ycbcr_image_avx2 {
                 }
 
                 for _ in 0..self.width() % 8 {
-                    let (y, cb, cr) =
-                        rgb_to_ycbcr(data[$o1], data[$o2], data[$o3]);
+                    let (y, cb, cr) = rgb_to_ycbcr(data[$o1], data[$o2], data[$o3]);
 
                     data = &data[$num_colors..];
 
