@@ -141,7 +141,10 @@ macro_rules! ycbcr_image_avx2 {
                     cr_buffer = &mut cr_buffer[1..];
                 }
 
-                // SAFETY: we've just filled these with data.
+                // SAFETY: We know the buffers are long enough,
+                // otherwise `buffer.spare_capacity_mut()[..self.width()]` above would panic,
+                // and we've just filled these with data.
+                //
                 // We do this at the end so that if the above code panics, and the panic is caught,
                 // the vectors will not have their length inflated yet and uninit memory will not be exposed
                 unsafe {
