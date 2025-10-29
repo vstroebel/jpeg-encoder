@@ -20,7 +20,7 @@ macro_rules! ycbcr_image_avx2 {
 
         impl<'a> $name<'a> {
             #[target_feature(enable = "avx2")]
-            unsafe fn fill_buffers_avx2(&self, y: u16, buffers: &mut [Vec<u8>; 4]) {
+            fn fill_buffers_avx2(&self, y: u16, buffers: &mut [Vec<u8>; 4]) {
 
                 #[inline]
                 #[target_feature(enable = "avx2")]
