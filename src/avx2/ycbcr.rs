@@ -21,16 +21,18 @@ macro_rules! ycbcr_image_avx2 {
         impl<'a> $name<'a> {
             #[target_feature(enable = "avx2")]
             unsafe fn fill_buffers_avx2(&self, y: u16, buffers: &mut [Vec<u8>; 4]) {
-                unsafe fn load3(data: *const u8) -> __m256i {
+                #[target_feature(enable = "avx2")]
+                fn load3(data: &[u8]) -> __m256i {
+                    _ = data[7 * $num_colors]; // dummy indexing operation up front to avoid bounds checks later
                     _mm256_set_epi32(
-                        *data as i32,
-                        *data.offset(1 * $num_colors) as i32,
-                        *data.offset(2 * $num_colors) as i32,
-                        *data.offset(3 * $num_colors) as i32,
-                        *data.offset(4 * $num_colors) as i32,
-                        *data.offset(5 * $num_colors) as i32,
-                        *data.offset(6 * $num_colors) as i32,
-                        *data.offset(7 * $num_colors) as i32,
+                        data[0] as i32,
+                        data[1 * $num_colors] as i32,
+                        data[2 * $num_colors] as i32,
+                        data[3 * $num_colors] as i32,
+                        data[4 * $num_colors] as i32,
+                        data[5 * $num_colors] as i32,
+                        data[6 * $num_colors] as i32,
+                        data[7 * $num_colors] as i32,
                     )
                 }
 
@@ -53,17 +55,16 @@ macro_rules! ycbcr_image_avx2 {
                 let crmulg = _mm256_set1_epi32(27439);
                 let crmulb = _mm256_set1_epi32(5329);
 
-                let mut data = self
+                let mut data = &self
                     .0
-                    .as_ptr()
-                    .offset((y as isize * self.1 as isize * $num_colors));
+                    [(y as usize * self.1 as usize * $num_colors)..];
 
                 for _ in 0..self.width() / 8 {
-                    let r = load3(data.offset($o1));
-                    let g = load3(data.offset($o2));
-                    let b = load3(data.offset($o3));
+                    let r = load3(&data[$o1..]);
+                    let g = load3(&data[$o2..]);
+                    let b = load3(&data[$o3..]);
 
-                    data = data.add($num_colors * 8);
+                    data = &data[($num_colors * 8)..];
 
                     let yr = _mm256_mullo_epi32(ymulr, r);
                     let yg = _mm256_mullo_epi32(ymulg, g);
@@ -112,9 +113,9 @@ macro_rules! ycbcr_image_avx2 {
 
                 for _ in 0..self.width() % 8 {
                     let (y, cb, cr) =
-                        rgb_to_ycbcr(*data.offset($o1), *data.offset($o2), *data.offset($o3));
+                        rgb_to_ycbcr(data[$o1], data[$o2], data[$o3]);
 
-                    data = data.add($num_colors);
+                    data = &data[$num_colors..];
 
                     *y_buffer = y;
                     y_buffer = y_buffer.offset(1);
