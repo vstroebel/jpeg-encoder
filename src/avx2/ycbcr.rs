@@ -86,6 +86,13 @@ macro_rules! ycbcr_image_avx2 {
                     let y = _mm256_add_epi32(y, _mm256_set1_epi32(0x7FFF));
                     let y = _mm256_srli_epi32(y, 16);
                     let y: [i32; 8] = avx_as_i32_array(y);
+                    let mut y: [u8; 8] = y.map(|x| x as u8);
+                    y.reverse();
+
+                    for (in_byte, out_byte) in y.iter().copied().zip(y_buffer[..8].iter_mut()) {
+                        out_byte.write(in_byte);
+                    }
+                    y_buffer = &mut y_buffer[8..];
 
                     let cbr = _mm256_mullo_epi32(cbmulr, r);
                     let cbg = _mm256_mullo_epi32(cbmulg, g);
@@ -96,6 +103,13 @@ macro_rules! ycbcr_image_avx2 {
                     let cb = _mm256_add_epi32(cb, _mm256_set1_epi32(0x7FFF));
                     let cb = _mm256_srli_epi32(cb, 16);
                     let cb: [i32; 8] = avx_as_i32_array(cb);
+                    let mut cb: [u8; 8] = cb.map(|x| x as u8);
+                    cb.reverse();
+
+                    for (in_byte, out_byte) in cb.iter().copied().zip(cb_buffer[..8].iter_mut()) {
+                        out_byte.write(in_byte);
+                    }
+                    cb_buffer = &mut cb_buffer[8..];
 
                     let crr = _mm256_mullo_epi32(crmulr, r);
                     let crg = _mm256_mullo_epi32(crmulg, g);
@@ -106,21 +120,13 @@ macro_rules! ycbcr_image_avx2 {
                     let cr = _mm256_add_epi32(cr, _mm256_set1_epi32(0x7FFF));
                     let cr = _mm256_srli_epi32(cr, 16);
                     let cr: [i32; 8] = avx_as_i32_array(cr);
+                    let mut cr: [u8; 8] = cr.map(|x| x as u8);
+                    cr.reverse();
 
-                    for y in y.iter().rev() {
-                        y_buffer[0].write(*y as u8);
-                        y_buffer = &mut y_buffer[1..];
+                    for (in_byte, out_byte) in cr.iter().copied().zip(cr_buffer[..8].iter_mut()) {
+                        out_byte.write(in_byte);
                     }
-
-                    for cb in cb.iter().rev() {
-                        cb_buffer[0].write(*cb as u8);
-                        cb_buffer = &mut cb_buffer[1..];
-                    }
-
-                    for cr in cr.iter().rev() {
-                        cr_buffer[0].write(*cr as u8);
-                        cr_buffer = &mut cr_buffer[1..];
-                    }
+                    cr_buffer = &mut cr_buffer[8..];
                 }
 
                 for _ in 0..self.width() % 8 {
