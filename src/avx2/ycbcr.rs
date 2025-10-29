@@ -49,12 +49,11 @@ macro_rules! ycbcr_image_avx2 {
                     unsafe { core::mem::transmute(data) }
                 }
 
-                let mut y_buffer = buffers[0].as_mut_ptr().add(buffers[0].len());
-                buffers[0].set_len(buffers[0].len() + self.width() as usize);
-                let mut cb_buffer = buffers[1].as_mut_ptr().add(buffers[1].len());
-                buffers[1].set_len(buffers[1].len() + self.width() as usize);
-                let mut cr_buffer = buffers[2].as_mut_ptr().add(buffers[2].len());
-                buffers[2].set_len(buffers[2].len() + self.width() as usize);
+                let [y_buffer, cb_buffer, cr_buffer, _] = buffers;
+                // if spare capacity is less than self.width(), slicing will fail here
+                let mut y_buffer = &mut y_buffer.spare_capacity_mut()[..self.width() as usize];
+                let mut cb_buffer = &mut cb_buffer.spare_capacity_mut()[..self.width() as usize];
+                let mut cr_buffer = &mut cr_buffer.spare_capacity_mut()[..self.width() as usize];
 
                 let ymulr = _mm256_set1_epi32(19595);
                 let ymulg = _mm256_set1_epi32(38470);
@@ -109,18 +108,18 @@ macro_rules! ycbcr_image_avx2 {
                     let cr: [i32; 8] = avx_as_i32_array(cr);
 
                     for y in y.iter().rev() {
-                        *y_buffer = *y as u8;
-                        y_buffer = y_buffer.offset(1);
+                        y_buffer[0].write(*y as u8);
+                        y_buffer = &mut y_buffer[1..];
                     }
 
                     for cb in cb.iter().rev() {
-                        *cb_buffer = *cb as u8;
-                        cb_buffer = cb_buffer.offset(1);
+                        cb_buffer[0].write(*cb as u8);
+                        cb_buffer = &mut cb_buffer[1..];
                     }
 
                     for cr in cr.iter().rev() {
-                        *cr_buffer = *cr as u8;
-                        cr_buffer = cr_buffer.offset(1);
+                        cr_buffer[0].write(*cr as u8);
+                        cr_buffer = &mut cr_buffer[1..];
                     }
                 }
 
@@ -130,14 +129,23 @@ macro_rules! ycbcr_image_avx2 {
 
                     data = &data[$num_colors..];
 
-                    *y_buffer = y;
-                    y_buffer = y_buffer.offset(1);
+                    y_buffer[0].write(y);
+                    y_buffer = &mut y_buffer[1..];
 
-                    *cb_buffer = cb;
-                    cb_buffer = cb_buffer.offset(1);
+                    cb_buffer[0].write(cb);
+                    cb_buffer = &mut cb_buffer[1..];
 
-                    *cr_buffer = cr;
-                    cr_buffer = cr_buffer.offset(1);
+                    cr_buffer[0].write(cr);
+                    cr_buffer = &mut cr_buffer[1..];
+                }
+
+                // SAFETY: we've just filled these with data.
+                // We do this at the end so that if the above code panics, and the panic is caught,
+                // the vectors will not have their length inflated yet and uninit memory will not be exposed
+                unsafe {
+                    buffers[0].set_len(buffers[0].len() + self.width() as usize);
+                    buffers[1].set_len(buffers[1].len() + self.width() as usize);
+                    buffers[2].set_len(buffers[2].len() + self.width() as usize);
                 }
             }
         }
