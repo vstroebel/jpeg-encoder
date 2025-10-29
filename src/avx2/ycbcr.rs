@@ -49,10 +49,9 @@ macro_rules! ycbcr_image_avx2 {
                 }
 
                 let [y_buffer, cb_buffer, cr_buffer, _] = buffers;
-                // if spare capacity is less than self.width(), slicing will fail here
-                let mut y_buffer = &mut y_buffer.spare_capacity_mut()[..self.width() as usize];
-                let mut cb_buffer = &mut cb_buffer.spare_capacity_mut()[..self.width() as usize];
-                let mut cr_buffer = &mut cr_buffer.spare_capacity_mut()[..self.width() as usize];
+                y_buffer.reserve(self.width() as usize);
+                cb_buffer.reserve(self.width() as usize);
+                cr_buffer.reserve(self.width() as usize);
 
                 let ymulr = _mm256_set1_epi32(19595);
                 let ymulg = _mm256_set1_epi32(38470);
@@ -85,11 +84,7 @@ macro_rules! ycbcr_image_avx2 {
                     let y: [i32; 8] = avx_as_i32_array(y);
                     let mut y: [u8; 8] = y.map(|x| x as u8);
                     y.reverse();
-
-                    for (in_byte, out_byte) in y.iter().copied().zip(y_buffer[..8].iter_mut()) {
-                        out_byte.write(in_byte);
-                    }
-                    y_buffer = &mut y_buffer[8..];
+                    y_buffer.extend_from_slice(&y);
 
                     let cbr = _mm256_mullo_epi32(cbmulr, r);
                     let cbg = _mm256_mullo_epi32(cbmulg, g);
@@ -102,11 +97,7 @@ macro_rules! ycbcr_image_avx2 {
                     let cb: [i32; 8] = avx_as_i32_array(cb);
                     let mut cb: [u8; 8] = cb.map(|x| x as u8);
                     cb.reverse();
-
-                    for (in_byte, out_byte) in cb.iter().copied().zip(cb_buffer[..8].iter_mut()) {
-                        out_byte.write(in_byte);
-                    }
-                    cb_buffer = &mut cb_buffer[8..];
+                    cb_buffer.extend_from_slice(&cb);
 
                     let crr = _mm256_mullo_epi32(crmulr, r);
                     let crg = _mm256_mullo_epi32(crmulg, g);
@@ -119,38 +110,16 @@ macro_rules! ycbcr_image_avx2 {
                     let cr: [i32; 8] = avx_as_i32_array(cr);
                     let mut cr: [u8; 8] = cr.map(|x| x as u8);
                     cr.reverse();
-
-                    for (in_byte, out_byte) in cr.iter().copied().zip(cr_buffer[..8].iter_mut()) {
-                        out_byte.write(in_byte);
-                    }
-                    cr_buffer = &mut cr_buffer[8..];
+                    cr_buffer.extend_from_slice(&cr);
                 }
 
                 for _ in 0..self.width() % 8 {
                     let (y, cb, cr) = rgb_to_ycbcr(data[$o1], data[$o2], data[$o3]);
-
                     data = &data[$num_colors..];
 
-                    y_buffer[0].write(y);
-                    y_buffer = &mut y_buffer[1..];
-
-                    cb_buffer[0].write(cb);
-                    cb_buffer = &mut cb_buffer[1..];
-
-                    cr_buffer[0].write(cr);
-                    cr_buffer = &mut cr_buffer[1..];
-                }
-
-                // SAFETY: We know the buffers are long enough,
-                // otherwise `buffer.spare_capacity_mut()[..self.width()]` above would panic,
-                // and we've just filled these with data.
-                //
-                // We do this at the end so that if the above code panics, and the panic is caught,
-                // the vectors will not have their length inflated yet and uninit memory will not be exposed
-                unsafe {
-                    buffers[0].set_len(buffers[0].len() + self.width() as usize);
-                    buffers[1].set_len(buffers[1].len() + self.width() as usize);
-                    buffers[2].set_len(buffers[2].len() + self.width() as usize);
+                    y_buffer.push(y);
+                    cb_buffer.push(cb);
+                    cr_buffer.push(cr);
                 }
             }
         }
