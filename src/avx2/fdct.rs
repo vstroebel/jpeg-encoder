@@ -457,10 +457,13 @@ fn fdct_avx2_internal(data: &mut [i16; 64]) {
     let ymm6 = _mm256_permute2x128_si256(ymm0, ymm4, 0x31); // ymm6=data4_5
     let ymm7 = _mm256_permute2x128_si256(ymm2, ymm4, 0x21); // ymm7=data6_7
 
-    avx_store(ymm3, &mut data[0..16].try_into().unwrap());
-    avx_store(ymm5, &mut data[16..32].try_into().unwrap());
-    avx_store(ymm6, &mut data[32..48].try_into().unwrap());
-    avx_store(ymm7, &mut data[48..64].try_into().unwrap());
+    unsafe {
+        let out_data = core::mem::transmute::<*mut i16, *mut __m256i>(data.as_mut_ptr());
+        _mm256_storeu_si256(out_data, ymm3);
+        _mm256_storeu_si256(out_data.add(1), ymm5);
+        _mm256_storeu_si256(out_data.add(2), ymm6);
+        _mm256_storeu_si256(out_data.add(3), ymm7);
+    }
 }
 
 /// Safe wrapper for an unaligned AVX load
