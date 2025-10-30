@@ -400,6 +400,24 @@ impl<W: JfifWrite> Encoder<W> {
         Ok(())
     }
 
+    /// Embeds Exif metadata into the image
+    ///
+    /// The maximum allowed data length is 65,528 bytes.
+    ///
+    /// # Errors
+    ///
+    /// Returns an Error if the data exceeds the maximum size for the Exif metadata
+    pub fn add_exif_metadata(&mut self, data: &[u8]) -> Result<(), EncodingError> {
+        // E x i f \0 \0
+        /// The header for an EXIF APP1 segment
+        const EXIF_HEADER: [u8; 6] = [0x45, 0x78, 0x69, 0x66, 0x00, 0x00];
+
+        let mut formatted = EXIF_HEADER.to_vec();
+        formatted.extend_from_slice(data);
+
+        self.add_app_segment(1, &formatted)
+    }
+
     /// Encode an image
     ///
     /// Data format and length must conform to specified width, height and color type.
