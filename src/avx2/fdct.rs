@@ -466,3 +466,21 @@ unsafe fn fdct_avx2_internal(data: &mut [i16; 64]) {
     _mm256_storeu_si256(out_data.add(2), ymm6);
     _mm256_storeu_si256(out_data.add(3), ymm7);
 }
+
+/// Safe wrapper for an unaligned AVX load
+#[target_feature(enable = "avx2")]
+#[inline]
+fn avx_load(input: &[i16; 16]) -> __m256i {
+    assert!(core::mem::size_of::<[i16; 16]>() == core::mem::size_of::<__m256i>());
+    // SAFETY: we've checked sizes above. The load is unaligned, so no alignment requirements.
+    unsafe { _mm256_loadu_si256(input.as_ptr() as *const __m256i) }
+}
+
+/// Safe wrapper for an unaligned AVX store
+#[target_feature(enable = "avx2")]
+#[inline]
+fn avx_store(input: __m256i, output: &mut [i16; 16]) {
+    assert!(core::mem::size_of::<[i16; 16]>() == core::mem::size_of::<__m256i>());
+    // SAFETY: we've checked sizes above. The load is unaligned, so no alignment requirements.
+    unsafe { _mm256_storeu_si256(output.as_mut_ptr() as *mut __m256i, input) }
+}
