@@ -420,10 +420,10 @@ fn fdct_avx2_internal(data: &mut [i16; 64]) {
         (t1, t2, t3, t4)
     }
 
-    let ymm4 = avx_load(data[0..16].try_into().unwrap());
-    let ymm5 = avx_load(data[16..32].try_into().unwrap());
-    let ymm6 = avx_load(data[32..48].try_into().unwrap());
-    let ymm7 = avx_load(data[48..64].try_into().unwrap());
+    let ymm4 = avx_load(&data[0..16]);
+    let ymm5 = avx_load(&data[16..32]);
+    let ymm6 = avx_load(&data[32..48]);
+    let ymm7 = avx_load(&data[48..64]);
 
     // ---- Pass 1: process rows.
     // ymm4=(00 01 02 03 04 05 06 07  10 11 12 13 14 15 16 17)
@@ -457,19 +457,17 @@ fn fdct_avx2_internal(data: &mut [i16; 64]) {
     let ymm6 = _mm256_permute2x128_si256(ymm0, ymm4, 0x31); // ymm6=data4_5
     let ymm7 = _mm256_permute2x128_si256(ymm2, ymm4, 0x21); // ymm7=data6_7
 
-    unsafe {
-        let out_data = core::mem::transmute::<*mut i16, *mut __m256i>(data.as_mut_ptr());
-        _mm256_storeu_si256(out_data, ymm3);
-        _mm256_storeu_si256(out_data.add(1), ymm5);
-        _mm256_storeu_si256(out_data.add(2), ymm6);
-        _mm256_storeu_si256(out_data.add(3), ymm7);
-    }
+    avx_store(ymm3, &mut data[0..16]);
+    avx_store(ymm5, &mut data[16..32]);
+    avx_store(ymm6, &mut data[32..48]);
+    avx_store(ymm7, &mut data[48..64]);
 }
 
 /// Safe wrapper for an unaligned AVX load
 #[target_feature(enable = "avx2")]
 #[inline]
-fn avx_load(input: &[i16; 16]) -> __m256i {
+fn avx_load(input: &[i16]) -> __m256i {
+    assert!(input.len() == 16);
     assert!(core::mem::size_of::<[i16; 16]>() == core::mem::size_of::<__m256i>());
     // SAFETY: we've checked sizes above. The load is unaligned, so no alignment requirements.
     unsafe { _mm256_loadu_si256(input.as_ptr() as *const __m256i) }
@@ -478,7 +476,8 @@ fn avx_load(input: &[i16; 16]) -> __m256i {
 /// Safe wrapper for an unaligned AVX store
 #[target_feature(enable = "avx2")]
 #[inline]
-fn avx_store(input: __m256i, output: &mut [i16; 16]) {
+fn avx_store(input: __m256i, output: &mut [i16]) {
+    assert!(output.len() == 16);
     assert!(core::mem::size_of::<[i16; 16]>() == core::mem::size_of::<__m256i>());
     // SAFETY: we've checked sizes above. The load is unaligned, so no alignment requirements.
     unsafe { _mm256_storeu_si256(output.as_mut_ptr() as *mut __m256i, input) }
