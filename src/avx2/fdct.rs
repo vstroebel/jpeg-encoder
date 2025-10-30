@@ -65,9 +65,10 @@ pub fn fdct_avx2(data: &mut [i16; 64]) {
 
 #[target_feature(enable = "avx2")]
 unsafe fn fdct_avx2_internal(data: &mut [i16; 64]) {
+    #[target_feature(enable = "avx2")]
     #[allow(non_snake_case)]
-    #[inline(always)]
-    unsafe fn PW_F130_F054_MF130_F054() -> __m256i {
+    #[inline]
+    fn PW_F130_F054_MF130_F054() -> __m256i {
         _mm256_set_epi16(
             F_0_541,
             F_0_541 - F_1_847,
@@ -88,9 +89,10 @@ unsafe fn fdct_avx2_internal(data: &mut [i16; 64]) {
         )
     }
 
+    #[target_feature(enable = "avx2")]
     #[allow(non_snake_case)]
-    #[inline(always)]
-    unsafe fn PW_MF078_F117_F078_F117() -> __m256i {
+    #[inline]
+    fn PW_MF078_F117_F078_F117() -> __m256i {
         _mm256_set_epi16(
             F_1_175,
             F_1_175 - F_0_390,
@@ -111,9 +113,10 @@ unsafe fn fdct_avx2_internal(data: &mut [i16; 64]) {
         )
     }
 
+    #[target_feature(enable = "avx2")]
     #[allow(non_snake_case)]
-    #[inline(always)]
-    unsafe fn PW_MF060_MF089_MF050_MF256() -> __m256i {
+    #[inline]
+    fn PW_MF060_MF089_MF050_MF256() -> __m256i {
         _mm256_set_epi16(
             -F_2_562,
             F_2_053 - F_2_562,
@@ -134,9 +137,10 @@ unsafe fn fdct_avx2_internal(data: &mut [i16; 64]) {
         )
     }
 
+    #[target_feature(enable = "avx2")]
     #[allow(non_snake_case)]
-    #[inline(always)]
-    unsafe fn PW_F050_MF256_F060_MF089() -> __m256i {
+    #[inline]
+    fn PW_F050_MF256_F060_MF089() -> __m256i {
         _mm256_set_epi16(
             -F_0_899,
             F_1_501 - F_0_899,
@@ -157,9 +161,10 @@ unsafe fn fdct_avx2_internal(data: &mut [i16; 64]) {
         )
     }
 
+    #[target_feature(enable = "avx2")]
     #[allow(non_snake_case)]
-    #[inline(always)]
-    unsafe fn PD_DESCALE_P(first_pass: bool) -> __m256i {
+    #[inline]
+    fn PD_DESCALE_P(first_pass: bool) -> __m256i {
         if first_pass {
             _mm256_set_epi32(
                 1 << (DESCALE_P1 - 1),
@@ -185,9 +190,10 @@ unsafe fn fdct_avx2_internal(data: &mut [i16; 64]) {
         }
     }
 
+    #[target_feature(enable = "avx2")]
     #[allow(non_snake_case)]
-    #[inline(always)]
-    unsafe fn PW_DESCALE_P2X() -> __m256i {
+    #[inline]
+    fn PW_DESCALE_P2X() -> __m256i {
         _mm256_set_epi32(
             1 << (PASS1_BITS - 1),
             1 << (PASS1_BITS - 1),
@@ -201,8 +207,9 @@ unsafe fn fdct_avx2_internal(data: &mut [i16; 64]) {
     }
 
     // In-place 8x8x16-bit matrix transpose using AVX2 instructions
-    #[inline(always)]
-    unsafe fn do_transpose(
+    #[target_feature(enable = "avx2")]
+    #[inline]
+    fn do_transpose(
         i1: __m256i,
         i2: __m256i,
         i3: __m256i,
@@ -244,8 +251,9 @@ unsafe fn fdct_avx2_internal(data: &mut [i16; 64]) {
     }
 
     // In-place 8x8x16-bit accurate integer forward DCT using AVX2 instructions
-    #[inline(always)]
-    unsafe fn do_dct(
+    #[target_feature(enable = "avx2")]
+    #[inline]
+    fn do_dct(
         first_pass: bool,
         i1: __m256i,
         i2: __m256i,
