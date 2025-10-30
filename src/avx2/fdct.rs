@@ -64,7 +64,7 @@ pub fn fdct_avx2(data: &mut [i16; 64]) {
 }
 
 #[target_feature(enable = "avx2")]
-unsafe fn fdct_avx2_internal(data: &mut [i16; 64]) {
+fn fdct_avx2_internal(data: &mut [i16; 64]) {
     #[target_feature(enable = "avx2")]
     #[allow(non_snake_case)]
     #[inline]
@@ -420,12 +420,10 @@ unsafe fn fdct_avx2_internal(data: &mut [i16; 64]) {
         (t1, t2, t3, t4)
     }
 
-    let in_data = core::mem::transmute::<*mut i16, *mut __m256i>(data.as_mut_ptr());
-
-    let ymm4 = _mm256_loadu_si256(in_data);
-    let ymm5 = _mm256_loadu_si256(in_data.add(1));
-    let ymm6 = _mm256_loadu_si256(in_data.add(2));
-    let ymm7 = _mm256_loadu_si256(in_data.add(3));
+    let ymm4 = avx_load(data[0..16].try_into().unwrap());
+    let ymm5 = avx_load(data[16..32].try_into().unwrap());
+    let ymm6 = avx_load(data[32..48].try_into().unwrap());
+    let ymm7 = avx_load(data[48..64].try_into().unwrap());
 
     // ---- Pass 1: process rows.
     // ymm4=(00 01 02 03 04 05 06 07  10 11 12 13 14 15 16 17)
@@ -459,12 +457,10 @@ unsafe fn fdct_avx2_internal(data: &mut [i16; 64]) {
     let ymm6 = _mm256_permute2x128_si256(ymm0, ymm4, 0x31); // ymm6=data4_5
     let ymm7 = _mm256_permute2x128_si256(ymm2, ymm4, 0x21); // ymm7=data6_7
 
-    let out_data = core::mem::transmute::<*mut i16, *mut __m256i>(data.as_mut_ptr());
-
-    _mm256_storeu_si256(out_data, ymm3);
-    _mm256_storeu_si256(out_data.add(1), ymm5);
-    _mm256_storeu_si256(out_data.add(2), ymm6);
-    _mm256_storeu_si256(out_data.add(3), ymm7);
+    avx_store(ymm3, &mut data[0..16].try_into().unwrap());
+    avx_store(ymm5, &mut data[16..32].try_into().unwrap());
+    avx_store(ymm6, &mut data[32..48].try_into().unwrap());
+    avx_store(ymm7, &mut data[48..64].try_into().unwrap());
 }
 
 /// Safe wrapper for an unaligned AVX load
