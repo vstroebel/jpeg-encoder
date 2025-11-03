@@ -151,3 +151,79 @@ ycbcr_image_avx2!(RgbImageAVX2, 3, 0, 1, 2);
 ycbcr_image_avx2!(RgbaImageAVX2, 4, 0, 1, 2);
 ycbcr_image_avx2!(BgrImageAVX2, 3, 2, 1, 0);
 ycbcr_image_avx2!(BgraImageAVX2, 4, 2, 1, 0);
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::vec::Vec;
+
+    // A very basic linear congruential generator (LCG) to avoid external dependencies.
+    pub struct SimpleRng {
+        state: u64,
+    }
+
+    impl SimpleRng {
+        /// Create a new RNG with a given seed.
+        pub fn new(seed: u64) -> Self {
+            Self { state: seed }
+        }
+
+        /// Generate the next random u64 value.
+        pub fn next_u64(&mut self) -> u64 {
+            // Constants from Numerical Recipes
+            self.state = self.state.wrapping_mul(6364136223846793005).wrapping_add(1);
+            self.state
+        }
+
+        /// Generate a random byte in 0..=255
+        pub fn next_byte(&mut self) -> u8 {
+            (self.next_u64() & 0xFF) as u8
+        }
+
+        /// Fill a Vec<u8> with random bytes of the given length.
+        pub fn random_bytes(&mut self, len: usize) -> Vec<u8> {
+            (0..len).map(|_| self.next_byte()).collect()
+        }
+    }
+
+    #[test]
+    #[cfg(feature = "simd")]
+    fn avx_matches_scalar_rgb() {
+        let mut rng = SimpleRng::new(42);
+        let width = 512 + 3; // power of two plus a bit to stress remainder handling
+        let height = 1;
+        let bpp = 3;
+
+        let input = rng.random_bytes(width * height * bpp); // power of two plus a bit to exercise remainder handling
+
+        let scalar_result: Vec<[u8; 3]> = input
+            .chunks_exact(bpp)
+            .map(|chunk| {
+                let [r, g, b, ..] = chunk else { unreachable!() };
+                let (y, cb, cr) = rgb_to_ycbcr(*r, *g, *b);
+                [y, cb, cr]
+            })
+            .collect();
+
+        let mut buffers = [Vec::new(), Vec::new(), Vec::new(), Vec::new()];
+        let avx_input = RgbImageAVX2(
+            &input,
+            width.try_into().unwrap(),
+            height.try_into().unwrap(),
+        );
+        unsafe {
+            let avx_result = avx_input.fill_buffers_avx2(0, &mut buffers);
+        }
+
+        for i in 0..3 {
+            assert_eq!(buffers[i].len(), input.len() / 3);
+        }
+
+        for (i, pixel) in scalar_result.iter().copied().enumerate() {
+            let avx_pixel: [u8; 3] = [buffers[0][i], buffers[1][i], buffers[2][i]];
+            if pixel != avx_pixel {
+                panic!("Mismatch at index {i}: scalar result is {pixel:?}, avx result is {avx_pixel:?}");
+            }
+        }
+    }
+}
