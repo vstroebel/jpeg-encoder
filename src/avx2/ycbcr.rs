@@ -21,6 +21,7 @@ macro_rules! ycbcr_image_avx2 {
         impl<'a> $name<'a> {
             #[target_feature(enable = "avx2")]
             fn fill_buffers_avx2(&self, y: u16, buffers: &mut [Vec<u8>; 4]) {
+                // TODO: this compiles to many separate scalar loads and could be optimized further.
                 #[inline]
                 #[target_feature(enable = "avx2")]
                 fn load3(data: &[u8]) -> __m256i {
