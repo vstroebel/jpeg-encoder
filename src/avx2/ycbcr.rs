@@ -191,6 +191,10 @@ mod tests {
     #[test]
     #[cfg(feature = "simd")]
     fn avx_matches_scalar_rgb() {
+        // Do not run AVX2 test on machines without it
+        if !std::is_x86_feature_detected!("avx2") {
+            return;
+        }
         let mut rng = SimpleRng::new(42);
         let width = 512 + 3; // power of two plus a bit to stress remainder handling
         let height = 1;
@@ -213,6 +217,7 @@ mod tests {
             width.try_into().unwrap(),
             height.try_into().unwrap(),
         );
+        // SAFETY: we've checked above that AVX2 is present
         unsafe {
             let avx_result = avx_input.fill_buffers_avx2(0, &mut buffers);
         }
