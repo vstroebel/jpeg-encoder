@@ -219,7 +219,7 @@ mod tests {
         );
         // SAFETY: we've checked above that AVX2 is present
         unsafe {
-            let avx_result = avx_input.fill_buffers_avx2(0, &mut buffers);
+            avx_input.fill_buffers_avx2(0, &mut buffers);
         }
 
         for i in 0..3 {
