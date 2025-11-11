@@ -9,7 +9,7 @@ use crate::EncodingError;
 /// For example, a 300 DPI image is represented by:
 ///
 /// ```rust
-/// use image::codecs::jpeg::*;
+/// # use jpeg_encoder::{PixelDensity, PixelDensityUnit};
 /// let hdpi = PixelDensity::dpi(300);
 /// assert_eq!(hdpi, PixelDensity {density: (300,300), unit: PixelDensityUnit::Inches})
 /// ```
