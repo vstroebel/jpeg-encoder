@@ -213,30 +213,27 @@ impl<W: JfifWrite> JfifWriter<W> {
         Ok(())
     }
 
-    pub fn write_header(&mut self, density: &Density) -> Result<(), EncodingError> {
+    pub fn write_header(&mut self, density: &PixelDensity) -> Result<(), EncodingError> {
         self.write_marker(Marker::APP(0))?;
         self.write_u16(16)?;
 
         self.write(b"JFIF\0")?;
         self.write(&[0x01, 0x02])?;
 
-        match *density {
-            Density::None => {
+        match density.unit {
+            PixelDensityUnit::PixelAspectRatio => {
                 self.write_u8(0x00)?;
-                self.write_u16(1)?;
-                self.write_u16(1)?;
             }
-            Density::Inch { x, y } => {
+            PixelDensityUnit::Inches => {
                 self.write_u8(0x01)?;
-                self.write_u16(x)?;
-                self.write_u16(y)?;
             }
-            Density::Centimeter { x, y } => {
+            PixelDensityUnit::Centimeters => {
                 self.write_u8(0x02)?;
-                self.write_u16(x)?;
-                self.write_u16(y)?;
             }
         }
+        let (x, y) = density.density;
+        self.write_u16(x)?;
+        self.write_u16(y)?;
 
         self.write(&[0x00, 0x00])
     }

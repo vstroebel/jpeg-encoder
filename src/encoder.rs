@@ -4,7 +4,7 @@ use crate::image_buffer::*;
 use crate::marker::Marker;
 use crate::quantization::{QuantizationTable, QuantizationTableType};
 use crate::writer::{JfifWrite, JfifWriter, ZIGZAG};
-use crate::{Density, EncodingError};
+use crate::{PixelDensity, EncodingError};
 
 use alloc::vec;
 use alloc::vec::Vec;
@@ -194,7 +194,7 @@ macro_rules! add_component {
 /// # The JPEG encoder
 pub struct Encoder<W: JfifWrite> {
     writer: JfifWriter<W>,
-    density: Density,
+    density: PixelDensity,
     quality: u8,
 
     components: Vec<Component>,
@@ -243,7 +243,7 @@ impl<W: JfifWrite> Encoder<W> {
 
         Encoder {
             writer: JfifWriter::new(w),
-            density: Density::None,
+            density: PixelDensity::default(),
             quality,
             components: vec![],
             quantization_tables,
@@ -259,12 +259,12 @@ impl<W: JfifWrite> Encoder<W> {
     /// Set pixel density for the image
     ///
     /// By default, this value is None which is equal to "1 pixel per pixel".
-    pub fn set_density(&mut self, density: Density) {
+    pub fn set_density(&mut self, density: PixelDensity) {
         self.density = density;
     }
 
     /// Return pixel density
-    pub fn density(&self) -> Density {
+    pub fn density(&self) -> PixelDensity {
         self.density
     }
 
