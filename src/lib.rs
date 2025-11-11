@@ -46,7 +46,7 @@ pub use encoder::{ColorType, Encoder, JpegColorType, SamplingFactor};
 pub use error::EncodingError;
 pub use image_buffer::{cmyk_to_ycck, rgb_to_ycbcr, ImageBuffer};
 pub use quantization::QuantizationTableType;
-pub use writer::{PixelDensity, JfifWrite};
+pub use writer::{PixelDensity, PixelDensityUnit, JfifWrite};
 
 #[cfg(feature = "benchmark")]
 pub use fdct::fdct;
