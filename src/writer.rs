@@ -4,17 +4,58 @@ use crate::marker::{Marker, SOFType};
 use crate::quantization::QuantizationTable;
 use crate::EncodingError;
 
-/// Density settings
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub enum Density {
-    /// No pixel density is set, which means "1 pixel per pixel"
-    None,
+/// Represents the pixel density of an image
+///
+/// For example, a 300 DPI image is represented by:
+///
+/// ```rust
+/// use image::codecs::jpeg::*;
+/// let hdpi = PixelDensity::dpi(300);
+/// assert_eq!(hdpi, PixelDensity {density: (300,300), unit: PixelDensityUnit::Inches})
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct PixelDensity {
+    /// A couple of values for (Xdensity, Ydensity)
+    pub density: (u16, u16),
+    /// The unit in which the density is measured
+    pub unit: PixelDensityUnit,
+}
 
-    /// Horizontal and vertical dots per inch (dpi)
-    Inch { x: u16, y: u16 },
+impl PixelDensity {
+    /// Creates the most common pixel density type:
+    /// the horizontal and the vertical density are equal,
+    /// and measured in pixels per inch.
+    #[must_use]
+    pub fn dpi(density: u16) -> Self {
+        PixelDensity {
+            density: (density, density),
+            unit: PixelDensityUnit::Inches,
+        }
+    }
+}
 
-    /// Horizontal and vertical dots per centimeters
-    Centimeter { x: u16, y: u16 },
+impl Default for PixelDensity {
+    /// Returns a pixel density with a pixel aspect ratio of 1
+    fn default() -> Self {
+        PixelDensity {
+            density: (1, 1),
+            unit: PixelDensityUnit::PixelAspectRatio,
+        }
+    }
+}
+
+/// Represents a unit in which the density of an image is measured
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum PixelDensityUnit {
+    /// Represents the absence of a unit, the values indicate only a
+    /// [pixel aspect ratio](https://en.wikipedia.org/wiki/Pixel_aspect_ratio)
+    PixelAspectRatio,
+
+    /// Pixels per inch (2.54 cm)
+    Inches,
+
+    /// Pixels per centimeter
+    Centimeters,
 }
 
 /// Zig-zag sequence of quantized DCT coefficients
