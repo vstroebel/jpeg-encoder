@@ -135,3 +135,21 @@ fn store_i32x4(arr: &mut [i32], vec: int32x4_t) {
     // Both types are plain old data: no pointers, lifetimes, etc.
     vst1q_s32(arr.as_mut_ptr(), vec);
 }
+
+#[inline]
+#[target_feature(enable = "neon")]
+fn load_u8_to_i32<const stride: usize>(values: &[u8]) -> [i32; 8] {
+    // avoid bounds checks further down
+    let values = &values[..7*stride + 1];
+
+    [
+        values[0 * stride] as i32,
+        values[1 * stride] as i32,
+        values[2 * stride] as i32,
+        values[3 * stride] as i32,
+        values[4 * stride] as i32,
+        values[5 * stride] as i32,
+        values[6 * stride] as i32,
+        values[7 * stride] as i32,
+    ]
+}
