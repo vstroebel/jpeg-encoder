@@ -1,11 +1,11 @@
+#[cfg(target_arch = "arm")] // 32-bit ARM  with NEON
+use std::arch::arm::*;
+
 #[cfg(target_arch = "aarch64")]
 use std::arch::aarch64::*;
 
-#[cfg(target_arch = "aarch64")]
 #[target_feature(enable = "neon")]
-#[unsafe(no_mangle)]
-#[inline(never)]
-unsafe fn rgb_to_ycbcr_simd(
+fn rgb_to_ycbcr_simd(
     r: [i32; 8],
     g: [i32; 8],
     b: [i32; 8],
@@ -19,12 +19,12 @@ unsafe fn rgb_to_ycbcr_simd(
     // Cr =  0.50000 * R - 0.41869 * G - 0.08131 * B  + 128
 
     // Load input arrays into NEON registers (2 registers per channel)
-    let r_lo = vld1q_s32(r.as_ptr());
-    let r_hi = vld1q_s32(r.as_ptr().add(4));
-    let g_lo = vld1q_s32(g.as_ptr());
-    let g_hi = vld1q_s32(g.as_ptr().add(4));
-    let b_lo = vld1q_s32(b.as_ptr());
-    let b_hi = vld1q_s32(b.as_ptr().add(4));
+    let r_lo = load_i32x4(r[..4]);
+    let r_hi = load_i32x4(r[4..]);
+    let g_lo = load_i32x4(g[..4]);
+    let g_hi = load_i32x4(g[4..]);
+    let b_lo = load_i32x4(b[..4]);
+    let b_hi = load_i32x4(b[4..]);
 
     let y1_mul = vdupq_n_s32(19595);
     let y2_mul = vdupq_n_s32(38470);
@@ -86,8 +86,9 @@ unsafe fn rgb_to_ycbcr_simd(
         cr4_mul,
     );
 
-    #[inline(always)]
-    unsafe fn round_shift(v: int32x4_t) -> int32x4_t {
+    #[target_feature(enable = "neon")]
+    #[inline]
+    fn round_shift(v: int32x4_t) -> int32x4_t {
         let round = vdupq_n_s32(0x7FFF);
         vshrq_n_s32(vaddq_s32(v, round), 16)
     }
@@ -113,4 +114,24 @@ unsafe fn rgb_to_ycbcr_simd(
     vst1q_s32(cr_out.as_mut_ptr().add(4), cr_hi);
 
     (y_out, cb_out, cr_out)
+}
+
+#[target_feature(enable = "neon")]
+fn load_i32x4(arr: &[i32; 4]) -> int32x4_t {
+    // Safety preconditions. Optimized away in release mode, no runtime cost.
+    assert!(core::mem::size_of::<int32x4_t>() == core::mem::size_of::<[i32; 4]>());
+    // SAFETY: size checked above.
+    // NEON load intrinsics do not care if data is aligned.
+    // Both types are plain old data: no pointers, lifetimes, etc.
+    vld1q_s32(arr.as_ptr())
+}
+
+#[target_feature(enable = "neon")]
+fn store_i32x4(arr: &mut [i32], vec: int32x4_t) {
+    // Safety preconditions. Optimized away in release mode, no runtime cost.
+    assert!(arr.len() >= core::mem::size_of::<int32x4_t>());
+    // SAFETY: size checked above.
+    // NEON load intrinsics do not care if data is aligned.
+    // Both types are plain old data: no pointers, lifetimes, etc.
+    vst1q_s32(arr.as_mut_ptr(), vec);
 }
