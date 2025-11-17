@@ -4,12 +4,90 @@ use std::arch::arm::*;
 #[cfg(target_arch = "aarch64")]
 use std::arch::aarch64::*;
 
+use alloc::vec::Vec;
+
+use crate::{rgb_to_ycbcr, ImageBuffer, JpegColorType};
+
+macro_rules! ycbcr_image_neon {
+    ($name:ident, $num_colors:expr, $o1:expr, $o2:expr, $o3:expr) => {
+        pub(crate) struct $name<'a>(pub &'a [u8], pub u16, pub u16);
+
+        impl<'a> $name<'a> {
+            #[target_feature(enable = "neon")]
+            fn fill_buffers_neon(&self, y: u16, buffers: &mut [Vec<u8>; 4]) {
+                #[inline]
+                #[target_feature(enable = "neon")]
+                fn load3(data: &[u8], offset: usize) -> [i32; 8] {
+                    load_channel::<3>(data, offset)
+                }
+
+                let [y_buffer, cb_buffer, cr_buffer, _] = buffers;
+                y_buffer.reserve(self.width() as usize);
+                cb_buffer.reserve(self.width() as usize);
+                cr_buffer.reserve(self.width() as usize);
+
+                let mut data = &self.0[(y as usize * self.1 as usize * $num_colors)..];
+
+                for _ in 0..self.width() / 8 {
+                    let r = load3(&data[$o1..]);
+                    let g = load3(&data[$o2..]);
+                    let b = load3(&data[$o3..]);
+
+                    data = &data[($num_colors * 8)..];
+
+                    let (y, cb, cr) = rgb_to_ycbcr_simd(r, g, b);
+
+                    let y: [u8; 8] = y.map(|x| x as u8);
+                    y_buffer.extend_from_slice(&y);
+
+                    let cb: [u8; 8] = cb.map(|x| x as u8);
+                    cb_buffer.extend_from_slice(&cb);
+
+                    let cr: [u8; 8] = cr.map(|x| x as u8);
+                    cr_buffer.extend_from_slice(&cr);
+                }
+
+                for _ in 0..self.width() % 8 {
+                    let (y, cb, cr) = rgb_to_ycbcr(data[$o1], data[$o2], data[$o3]);
+                    data = &data[$num_colors..];
+
+                    y_buffer.push(y);
+                    cb_buffer.push(cb);
+                    cr_buffer.push(cr);
+                }
+            }
+        }
+
+        impl<'a> ImageBuffer for $name<'a> {
+            fn get_jpeg_color_type(&self) -> JpegColorType {
+                JpegColorType::Ycbcr
+            }
+
+            fn width(&self) -> u16 {
+                self.1
+            }
+
+            fn height(&self) -> u16 {
+                self.2
+            }
+
+            #[inline(always)]
+            fn fill_buffers(&self, y: u16, buffers: &mut [Vec<u8>; 4]) {
+                unsafe {
+                    self.fill_buffers_neon(y, buffers);
+                }
+            }
+        }
+    };
+}
+
+ycbcr_image_neon!(RgbImageNeon, 3, 0, 1, 2);
+ycbcr_image_neon!(RgbaImageNeon, 4, 0, 1, 2);
+ycbcr_image_neon!(BgrImageNeon, 3, 2, 1, 0);
+ycbcr_image_neon!(BgraImageNeon, 4, 2, 1, 0);
+
 #[target_feature(enable = "neon")]
-fn rgb_to_ycbcr_simd(
-    r: [i32; 8],
-    g: [i32; 8],
-    b: [i32; 8],
-) -> ([i32; 8], [i32; 8], [i32; 8]) {
+fn rgb_to_ycbcr_simd(r: [i32; 8], g: [i32; 8], b: [i32; 8]) -> ([i32; 8], [i32; 8], [i32; 8]) {
     // To avoid floating point math this scales everything by 2^16 which gives
     // a precision of approx 4 digits.
     //
@@ -119,6 +197,7 @@ fn rgb_to_ycbcr_simd(
     (y_out, cb_out, cr_out)
 }
 
+#[inline]
 #[target_feature(enable = "neon")]
 fn load_i32x4(arr: &[i32; 4]) -> int32x4_t {
     // Safety preconditions. Optimized away in release mode, no runtime cost.
@@ -129,6 +208,7 @@ fn load_i32x4(arr: &[i32; 4]) -> int32x4_t {
     unsafe { vld1q_s32(arr.as_ptr()) }
 }
 
+#[inline]
 #[target_feature(enable = "neon")]
 fn store_i32x4(arr: &mut [i32], vec: int32x4_t) {
     // Safety preconditions. Optimized away in release mode, no runtime cost.
@@ -136,14 +216,16 @@ fn store_i32x4(arr: &mut [i32], vec: int32x4_t) {
     // SAFETY: size checked above.
     // NEON load intrinsics do not care if data is aligned.
     // Both types are plain old data: no pointers, lifetimes, etc.
-    unsafe { vst1q_s32(arr.as_mut_ptr(), vec); }
+    unsafe {
+        vst1q_s32(arr.as_mut_ptr(), vec);
+    }
 }
 
 #[inline]
 #[target_feature(enable = "neon")]
-fn load_u8_to_i32<const STRIDE: usize>(values: &[u8]) -> [i32; 8] {
+fn load_channel<const STRIDE: usize>(values: &[u8]) -> [i32; 8] {
     // avoid bounds checks further down
-    let values = &values[..7*STRIDE + 1];
+    let values = &values[..7 * STRIDE + 1];
 
     [
         values[0 * STRIDE] as i32,
