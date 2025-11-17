@@ -33,6 +33,8 @@ extern crate core;
 
 #[cfg(all(feature = "simd", any(target_arch = "x86", target_arch = "x86_64")))]
 mod avx2;
+#[cfg(all(feature = "simd", target_feature = "neon"))]
+mod neon;
 mod encoder;
 mod error;
 mod fdct;
