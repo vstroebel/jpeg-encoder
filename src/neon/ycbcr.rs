@@ -5,7 +5,11 @@ use std::arch::aarch64::*;
 #[target_feature(enable = "neon")]
 #[unsafe(no_mangle)]
 #[inline(never)]
-unsafe fn rgb_to_ycbcr_simd(r: int32x4_t, g: int32x4_t, b: int32x4_t) -> (int32x4_t, int32x4_t, int32x4_t) {
+unsafe fn rgb_to_ycbcr_simd(
+    r: [i32; 8],
+    g: [i32; 8],
+    b: [i32; 8],
+) -> ([i32; 8], [i32; 8], [i32; 8]) {
     // To avoid floating point math this scales everything by 2^16 which gives
     // a precision of approx 4 digits.
     //
@@ -13,6 +17,14 @@ unsafe fn rgb_to_ycbcr_simd(r: int32x4_t, g: int32x4_t, b: int32x4_t) -> (int32x
     // Y  =  0.29900 * R + 0.58700 * G + 0.11400 * B
     // Cb = -0.16874 * R - 0.33126 * G + 0.50000 * B  + 128
     // Cr =  0.50000 * R - 0.41869 * G - 0.08131 * B  + 128
+
+    // Load input arrays into NEON registers (2 registers per channel)
+    let r_lo = vld1q_s32(r.as_ptr());
+    let r_hi = vld1q_s32(r.as_ptr().add(4));
+    let g_lo = vld1q_s32(g.as_ptr());
+    let g_hi = vld1q_s32(g.as_ptr().add(4));
+    let b_lo = vld1q_s32(b.as_ptr());
+    let b_hi = vld1q_s32(b.as_ptr().add(4));
 
     let y1_mul = vdupq_n_s32(19595);
     let y2_mul = vdupq_n_s32(38470);
@@ -28,19 +40,50 @@ unsafe fn rgb_to_ycbcr_simd(r: int32x4_t, g: int32x4_t, b: int32x4_t) -> (int32x
     let cr3_mul = vdupq_n_s32(5329);
     let cr4_mul = vdupq_n_s32(128 << 16);
 
-    // Y = y1_mul * r + y2_mul * g + y3_mul * b
-    let y = vmlaq_s32(vmlaq_s32(vmulq_s32(y1_mul, r), y2_mul, g), y3_mul, b);
-    
-    // Cb = cb1_mul * r - cb2_mul * g + cb3_mul * b + cb4_mul
-    let cb = vaddq_s32(
-        vmlaq_s32(vmlsq_s32(vmulq_s32(cb1_mul, r), cb2_mul, g), cb3_mul, b),
-        cb4_mul
+    // Process low 4 elements
+    let y_lo = vmlaq_s32(
+        vmlaq_s32(vmulq_s32(y1_mul, r_lo), y2_mul, g_lo),
+        y3_mul,
+        b_lo,
     );
-    
-    // Cr = cr1_mul * r - cr2_mul * g - cr3_mul * b + cr4_mul
-    let cr = vaddq_s32(
-        vmlsq_s32(vmlsq_s32(vmulq_s32(cr1_mul, r), cr2_mul, g), cr3_mul, b),
-        cr4_mul
+    let cb_lo = vaddq_s32(
+        vmlaq_s32(
+            vmlsq_s32(vmulq_s32(cb1_mul, r_lo), cb2_mul, g_lo),
+            cb3_mul,
+            b_lo,
+        ),
+        cb4_mul,
+    );
+    let cr_lo = vaddq_s32(
+        vmlsq_s32(
+            vmlsq_s32(vmulq_s32(cr1_mul, r_lo), cr2_mul, g_lo),
+            cr3_mul,
+            b_lo,
+        ),
+        cr4_mul,
+    );
+
+    // Process high 4 elements
+    let y_hi = vmlaq_s32(
+        vmlaq_s32(vmulq_s32(y1_mul, r_hi), y2_mul, g_hi),
+        y3_mul,
+        b_hi,
+    );
+    let cb_hi = vaddq_s32(
+        vmlaq_s32(
+            vmlsq_s32(vmulq_s32(cb1_mul, r_hi), cb2_mul, g_hi),
+            cb3_mul,
+            b_hi,
+        ),
+        cb4_mul,
+    );
+    let cr_hi = vaddq_s32(
+        vmlsq_s32(
+            vmlsq_s32(vmulq_s32(cr1_mul, r_hi), cr2_mul, g_hi),
+            cr3_mul,
+            b_hi,
+        ),
+        cr4_mul,
     );
 
     #[inline(always)]
@@ -49,9 +92,25 @@ unsafe fn rgb_to_ycbcr_simd(r: int32x4_t, g: int32x4_t, b: int32x4_t) -> (int32x
         vshrq_n_s32(vaddq_s32(v, round), 16)
     }
 
-    (
-        round_shift(y),
-        round_shift(cb),
-        round_shift(cr)
-    )
+    // Round and shift
+    let y_lo = round_shift(y_lo);
+    let y_hi = round_shift(y_hi);
+    let cb_lo = round_shift(cb_lo);
+    let cb_hi = round_shift(cb_hi);
+    let cr_lo = round_shift(cr_lo);
+    let cr_hi = round_shift(cr_hi);
+
+    // Store results back to arrays
+    let mut y_out = [0i32; 8];
+    let mut cb_out = [0i32; 8];
+    let mut cr_out = [0i32; 8];
+
+    vst1q_s32(y_out.as_mut_ptr(), y_lo);
+    vst1q_s32(y_out.as_mut_ptr().add(4), y_hi);
+    vst1q_s32(cb_out.as_mut_ptr(), cb_lo);
+    vst1q_s32(cb_out.as_mut_ptr().add(4), cb_hi);
+    vst1q_s32(cr_out.as_mut_ptr(), cr_lo);
+    vst1q_s32(cr_out.as_mut_ptr().add(4), cr_hi);
+
+    (y_out, cb_out, cr_out)
 }
