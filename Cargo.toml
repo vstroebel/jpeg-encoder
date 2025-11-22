@@ -12,14 +12,17 @@ repository = "https://github.com/vstroebel/jpeg-encoder"
 rust-version = "1.61"
 
 [features]
-default = ["std"]
+default = ["std", "use_wide"]
 simd = ["std"]
 std = []
+use_wide = ["wide", "bytemuck"]
 
 # DO NOT USE THIS IN PRODUCTION. Expose several internal functions for benchmark purposes.
 benchmark = []
 
 [dependencies]
+wide = { version = "0.7", optional = true, default-features = false }
+bytemuck = { version = "1", optional = true, default-features = false }
 
 [dev-dependencies]
 jpeg-decoder = { version = "0.3", default-features = false }
