@@ -71,160 +71,300 @@
  * scaled fixed-point arithmetic, with a minimal number of shifts.
  */
 
-use bytemuck::cast;
-use wide::{i16x8, i32x8};
-
 const CONST_BITS: i32 = 13;
-const PASS1_BITS: i32 = 2;
 
-const FIX_0_298631336: i32 = 2446;
-const FIX_0_390180644: i32 = 3196;
-const FIX_0_541196100: i32 = 4433;
-const FIX_0_765366865: i32 = 6270;
-const FIX_0_899976223: i32 = 7373;
-const FIX_1_175875602: i32 = 9633;
-const FIX_1_501321110: i32 = 12299;
-const FIX_1_847759065: i32 = 15137;
-const FIX_1_961570560: i32 = 16069;
-const FIX_2_053119869: i32 = 16819;
-const FIX_2_562915447: i32 = 20995;
-const FIX_3_072711026: i32 = 25172;
-
-fn descale_w(x: i32x8, n: i32) -> i32x8 {
-    // right shift with rounding
-    (x + (1 << (n - 1))) >> n
-}
-
+#[cfg(not(feature = "use_wide"))]
 #[allow(clippy::erasing_op)]
 #[allow(clippy::identity_op)]
 pub fn fdct(data: &mut [i16; 64]) {
+    const PASS1_BITS: i32 = 2;
+
+    const FIX_0_298631336: i32 = 2446;
+    const FIX_0_390180644: i32 = 3196;
+    const FIX_0_541196100: i32 = 4433;
+    const FIX_0_765366865: i32 = 6270;
+    const FIX_0_899976223: i32 = 7373;
+    const FIX_1_175875602: i32 = 9633;
+    const FIX_1_501321110: i32 = 12299;
+    const FIX_1_847759065: i32 = 15137;
+    const FIX_1_961570560: i32 = 16069;
+    const FIX_2_053119869: i32 = 16819;
+    const FIX_2_562915447: i32 = 20995;
+    const FIX_3_072711026: i32 = 25172;
+
+    const DCT_SIZE: usize = 8;
+
+    #[inline(always)]
+    fn descale(x: i32, n: i32) -> i32 {
+        // right shift with rounding
+        (x + (1 << (n - 1))) >> n
+    }
+
+    #[inline(always)]
+    fn into_el(v: i32) -> i16 {
+        v as i16
+    }
+
     /* Pass 1: process rows. */
     /* Note results are scaled up by sqrt(8) compared to a true DCT; */
     /* furthermore, we scale the results by 2**PASS1_BITS. */
 
-    let data_w = i16x8::transpose(cast(*data)).map(i32x8::from_i16x8);
+    let mut data2 = [0i32; 64];
 
-    let tmp0 = data_w[0] + data_w[7];
-    let tmp7 = data_w[0] - data_w[7];
-    let tmp1 = data_w[1] + data_w[6];
-    let tmp6 = data_w[1] - data_w[6];
-    let tmp2 = data_w[2] + data_w[5];
-    let tmp5 = data_w[2] - data_w[5];
-    let tmp3 = data_w[3] + data_w[4];
-    let tmp4 = data_w[3] - data_w[4];
+    for y in 0..8 {
+        let offset = y * 8;
 
-    /* Even part per LL&M figure 1 --- note that published figure is faulty;
-     * rotator "sqrt(2)*c1" should be "sqrt(2)*c6".
-     */
+        let tmp0 = i32::from(data[offset + 0]) + i32::from(data[offset + 7]);
+        let tmp7 = i32::from(data[offset + 0]) - i32::from(data[offset + 7]);
+        let tmp1 = i32::from(data[offset + 1]) + i32::from(data[offset + 6]);
+        let tmp6 = i32::from(data[offset + 1]) - i32::from(data[offset + 6]);
+        let tmp2 = i32::from(data[offset + 2]) + i32::from(data[offset + 5]);
+        let tmp5 = i32::from(data[offset + 2]) - i32::from(data[offset + 5]);
+        let tmp3 = i32::from(data[offset + 3]) + i32::from(data[offset + 4]);
+        let tmp4 = i32::from(data[offset + 3]) - i32::from(data[offset + 4]);
 
-    let tmp10 = tmp0 + tmp3;
-    let tmp13 = tmp0 - tmp3;
-    let tmp11 = tmp1 + tmp2;
-    let tmp12 = tmp1 - tmp2;
+        /* Even part per LL&M figure 1 --- note that published figure is faulty;
+         * rotator "sqrt(2)*c1" should be "sqrt(2)*c6".
+         */
 
-    let data_0 = (tmp10 + tmp11) << PASS1_BITS;
-    let data_4 = (tmp10 - tmp11) << PASS1_BITS;
+        let tmp10 = tmp0 + tmp3;
+        let tmp13 = tmp0 - tmp3;
+        let tmp11 = tmp1 + tmp2;
+        let tmp12 = tmp1 - tmp2;
 
-    let z1 = (tmp12 + tmp13) * FIX_0_541196100;
-    let data_2 = descale_w(z1 + (tmp13 * FIX_0_765366865), CONST_BITS - PASS1_BITS);
-    let data_6 = descale_w(z1 + (tmp12 * -FIX_1_847759065), CONST_BITS - PASS1_BITS);
+        data2[offset + 0] = (tmp10 + tmp11) << PASS1_BITS;
+        data2[offset + 4] = (tmp10 - tmp11) << PASS1_BITS;
 
-    /* Odd part per figure 8 --- note paper omits factor of sqrt(2).
-     * cK represents cos(K*pi/16).
-     * i0..i3 in the paper are tmp4..tmp7 here.
-     */
+        let z1 = (tmp12 + tmp13) * FIX_0_541196100;
+        data2[offset + 2] = descale(z1 + (tmp13 * FIX_0_765366865), CONST_BITS - PASS1_BITS);
+        data2[offset + 6] = descale(z1 + (tmp12 * -FIX_1_847759065), CONST_BITS - PASS1_BITS);
 
-    let z1 = tmp4 + tmp7;
-    let z2 = tmp5 + tmp6;
-    let z3 = tmp4 + tmp6;
-    let z4 = tmp5 + tmp7;
-    let z5 = (z3 + z4) * FIX_1_175875602; /* sqrt(2) * c3 */
+        /* Odd part per figure 8 --- note paper omits factor of sqrt(2).
+         * cK represents cos(K*pi/16).
+         * i0..i3 in the paper are tmp4..tmp7 here.
+         */
 
-    let tmp4 = tmp4 * FIX_0_298631336; /* sqrt(2) * (-c1+c3+c5-c7) */
-    let tmp5 = tmp5 * FIX_2_053119869; /* sqrt(2) * ( c1+c3-c5+c7) */
-    let tmp6 = tmp6 * FIX_3_072711026; /* sqrt(2) * ( c1+c3+c5-c7) */
-    let tmp7 = tmp7 * FIX_1_501321110; /* sqrt(2) * ( c1+c3-c5-c7) */
-    let z1 = z1 * -FIX_0_899976223; /* sqrt(2) * ( c7-c3) */
-    let z2 = z2 * -FIX_2_562915447; /* sqrt(2) * (-c1-c3) */
-    let z3 = z3 * -FIX_1_961570560; /* sqrt(2) * (-c3-c5) */
-    let z4 = z4 * -FIX_0_390180644; /* sqrt(2) * ( c5-c3) */
+        let z1 = tmp4 + tmp7;
+        let z2 = tmp5 + tmp6;
+        let z3 = tmp4 + tmp6;
+        let z4 = tmp5 + tmp7;
+        let z5 = (z3 + z4) * FIX_1_175875602; /* sqrt(2) * c3 */
 
-    let z3 = z3 + z5;
-    let z4 = z4 + z5;
+        let tmp4 = tmp4 * FIX_0_298631336; /* sqrt(2) * (-c1+c3+c5-c7) */
+        let tmp5 = tmp5 * FIX_2_053119869; /* sqrt(2) * ( c1+c3-c5+c7) */
+        let tmp6 = tmp6 * FIX_3_072711026; /* sqrt(2) * ( c1+c3+c5-c7) */
+        let tmp7 = tmp7 * FIX_1_501321110; /* sqrt(2) * ( c1+c3-c5-c7) */
+        let z1 = z1 * -FIX_0_899976223; /* sqrt(2) * ( c7-c3) */
+        let z2 = z2 * -FIX_2_562915447; /* sqrt(2) * (-c1-c3) */
+        let z3 = z3 * -FIX_1_961570560; /* sqrt(2) * (-c3-c5) */
+        let z4 = z4 * -FIX_0_390180644; /* sqrt(2) * ( c5-c3) */
 
-    let data_7 = descale_w(tmp4 + z1 + z3, CONST_BITS - PASS1_BITS);
-    let data_5 = descale_w(tmp5 + z2 + z4, CONST_BITS - PASS1_BITS);
-    let data_3 = descale_w(tmp6 + z2 + z3, CONST_BITS - PASS1_BITS);
-    let data_1 = descale_w(tmp7 + z1 + z4, CONST_BITS - PASS1_BITS);
+        let z3 = z3 + z5;
+        let z4 = z4 + z5;
 
-    let data_w = i32x8::transpose([
-        data_0, data_1, data_2, data_3, data_4, data_5, data_6, data_7,
-    ]);
+        data2[offset + 7] = descale(tmp4 + z1 + z3, CONST_BITS - PASS1_BITS);
+        data2[offset + 5] = descale(tmp5 + z2 + z4, CONST_BITS - PASS1_BITS);
+        data2[offset + 3] = descale(tmp6 + z2 + z3, CONST_BITS - PASS1_BITS);
+        data2[offset + 1] = descale(tmp7 + z1 + z4, CONST_BITS - PASS1_BITS);
+    }
 
     /* Pass 2: process columns.
      * We remove the PASS1_BITS scaling, but leave the results scaled up
      * by an overall factor of 8.
      */
 
-    let tmp0 = data_w[0] + data_w[7];
-    let tmp7 = data_w[0] - data_w[7];
-    let tmp1 = data_w[1] + data_w[6];
-    let tmp6 = data_w[1] - data_w[6];
-    let tmp2 = data_w[2] + data_w[5];
-    let tmp5 = data_w[2] - data_w[5];
-    let tmp3 = data_w[3] + data_w[4];
-    let tmp4 = data_w[3] - data_w[4];
+    for x in 0..8 {
+        let tmp0 = data2[DCT_SIZE * 0 + x] + data2[DCT_SIZE * 7 + x];
+        let tmp7 = data2[DCT_SIZE * 0 + x] - data2[DCT_SIZE * 7 + x];
+        let tmp1 = data2[DCT_SIZE * 1 + x] + data2[DCT_SIZE * 6 + x];
+        let tmp6 = data2[DCT_SIZE * 1 + x] - data2[DCT_SIZE * 6 + x];
+        let tmp2 = data2[DCT_SIZE * 2 + x] + data2[DCT_SIZE * 5 + x];
+        let tmp5 = data2[DCT_SIZE * 2 + x] - data2[DCT_SIZE * 5 + x];
+        let tmp3 = data2[DCT_SIZE * 3 + x] + data2[DCT_SIZE * 4 + x];
+        let tmp4 = data2[DCT_SIZE * 3 + x] - data2[DCT_SIZE * 4 + x];
 
-    /* Even part per LL&M figure 1 --- note that published figure is faulty;
-     * rotator "sqrt(2)*c1" should be "sqrt(2)*c6".
-     */
+        /* Even part per LL&M figure 1 --- note that published figure is faulty;
+         * rotator "sqrt(2)*c1" should be "sqrt(2)*c6".
+         */
 
-    let tmp10 = tmp0 + tmp3;
-    let tmp13 = tmp0 - tmp3;
-    let tmp11 = tmp1 + tmp2;
-    let tmp12 = tmp1 - tmp2;
+        let tmp10 = tmp0 + tmp3;
+        let tmp13 = tmp0 - tmp3;
+        let tmp11 = tmp1 + tmp2;
+        let tmp12 = tmp1 - tmp2;
 
-    let data_0 = descale_w(tmp10 + tmp11, PASS1_BITS);
-    let data_4 = descale_w(tmp10 - tmp11, PASS1_BITS);
+        data[DCT_SIZE * 0 + x] = into_el(descale(tmp10 + tmp11, PASS1_BITS));
+        data[DCT_SIZE * 4 + x] = into_el(descale(tmp10 - tmp11, PASS1_BITS));
 
-    let z1 = (tmp12 + tmp13) * FIX_0_541196100;
-    let data_2 = descale_w(z1 + tmp13 * FIX_0_765366865, CONST_BITS + PASS1_BITS);
-    let data_6 = descale_w(z1 + tmp12 * -FIX_1_847759065, CONST_BITS + PASS1_BITS);
+        let z1 = (tmp12 + tmp13) * FIX_0_541196100;
+        data[DCT_SIZE * 2 + x] = into_el(descale(
+            z1 + tmp13 * FIX_0_765366865,
+            CONST_BITS + PASS1_BITS,
+        ));
+        data[DCT_SIZE * 6 + x] = into_el(descale(
+            z1 + tmp12 * -FIX_1_847759065,
+            CONST_BITS + PASS1_BITS,
+        ));
 
-    /* Odd part per figure 8 --- note paper omits factor of sqrt(2).
-     * cK represents cos(K*pi/16).
-     * i0..i3 in the paper are tmp4..tmp7 here.
-     */
+        /* Odd part per figure 8 --- note paper omits factor of sqrt(2).
+         * cK represents cos(K*pi/16).
+         * i0..i3 in the paper are tmp4..tmp7 here.
+         */
 
-    let z1 = tmp4 + tmp7;
-    let z2 = tmp5 + tmp6;
-    let z3 = tmp4 + tmp6;
-    let z4 = tmp5 + tmp7;
-    let z5 = (z3 + z4) * FIX_1_175875602; /* sqrt(2) * c3 */
+        let z1 = tmp4 + tmp7;
+        let z2 = tmp5 + tmp6;
+        let z3 = tmp4 + tmp6;
+        let z4 = tmp5 + tmp7;
+        let z5 = (z3 + z4) * FIX_1_175875602; /* sqrt(2) * c3 */
 
-    let tmp4 = tmp4 * FIX_0_298631336; /* sqrt(2) * (-c1+c3+c5-c7) */
-    let tmp5 = tmp5 * FIX_2_053119869; /* sqrt(2) * ( c1+c3-c5+c7) */
-    let tmp6 = tmp6 * FIX_3_072711026; /* sqrt(2) * ( c1+c3+c5-c7) */
-    let tmp7 = tmp7 * FIX_1_501321110; /* sqrt(2) * ( c1+c3-c5-c7) */
-    let z1 = z1 * -FIX_0_899976223; /* sqrt(2) * ( c7-c3) */
-    let z2 = z2 * -FIX_2_562915447; /* sqrt(2) * (-c1-c3) */
-    let z3 = z3 * -FIX_1_961570560; /* sqrt(2) * (-c3-c5) */
-    let z4 = z4 * -FIX_0_390180644; /* sqrt(2) * ( c5-c3) */
+        let tmp4 = tmp4 * FIX_0_298631336; /* sqrt(2) * (-c1+c3+c5-c7) */
+        let tmp5 = tmp5 * FIX_2_053119869; /* sqrt(2) * ( c1+c3-c5+c7) */
+        let tmp6 = tmp6 * FIX_3_072711026; /* sqrt(2) * ( c1+c3+c5-c7) */
+        let tmp7 = tmp7 * FIX_1_501321110; /* sqrt(2) * ( c1+c3-c5-c7) */
+        let z1 = z1 * -FIX_0_899976223; /* sqrt(2) * ( c7-c3) */
+        let z2 = z2 * -FIX_2_562915447; /* sqrt(2) * (-c1-c3) */
+        let z3 = z3 * -FIX_1_961570560; /* sqrt(2) * (-c3-c5) */
+        let z4 = z4 * -FIX_0_390180644; /* sqrt(2) * ( c5-c3) */
 
-    let z3 = z3 + z5;
-    let z4 = z4 + z5;
+        let z3 = z3 + z5;
+        let z4 = z4 + z5;
 
-    let data_7 = descale_w(tmp4 + z1 + z3, CONST_BITS + PASS1_BITS);
-    let data_5 = descale_w(tmp5 + z2 + z4, CONST_BITS + PASS1_BITS);
-    let data_3 = descale_w(tmp6 + z2 + z3, CONST_BITS + PASS1_BITS);
-    let data_1 = descale_w(tmp7 + z1 + z4, CONST_BITS + PASS1_BITS);
+        data[DCT_SIZE * 7 + x] = into_el(descale(tmp4 + z1 + z3, CONST_BITS + PASS1_BITS));
+        data[DCT_SIZE * 5 + x] = into_el(descale(tmp5 + z2 + z4, CONST_BITS + PASS1_BITS));
+        data[DCT_SIZE * 3 + x] = into_el(descale(tmp6 + z2 + z3, CONST_BITS + PASS1_BITS));
+        data[DCT_SIZE * 1 + x] = into_el(descale(tmp7 + z1 + z4, CONST_BITS + PASS1_BITS));
+    }
+}
 
-    *data = cast(
+/// This version uses the wide crate for SIMD operations, resulting in a 80% speedup on older SSE2-capable CPUs.
+///
+/// It also means that these operations can be done on ARM and WASM targets that support SIMD.
+///
+/// The pure AVX2 version is still another 10-20% faster if compiling for AVX2.
+#[cfg(feature = "use_wide")]
+pub fn fdct(data: &mut [i16; 64]) {
+    use bytemuck::cast;
+    use wide::{i16x8, i32x8};
+
+    const FIX_0_298631336: i16 = 2446;
+    const FIX_0_390180644: i16 = 3196;
+    const FIX_0_541196100: i16 = 4433;
+    const FIX_0_765366865: i16 = 6270;
+    const FIX_0_899976223: i16 = 7373;
+    const FIX_1_175875602: i16 = 9633;
+    const FIX_1_501321110: i16 = 12299;
+    const FIX_1_847759065: i16 = 15137;
+    const FIX_1_961570560: i16 = 16069;
+    const FIX_2_053119869: i16 = 16819;
+    const FIX_2_562915447: i16 = 20995;
+    const FIX_3_072711026: i16 = 25172;
+
+    #[inline(always)]
+    fn descale_w(x: i32x8, n: i32) -> i16x8 {
+        // right shift with rounding
+        i16x8::from_i32x8_saturate((x + (1 << (n - 1))) >> n)
+    }
+
+    #[inline(always)]
+    fn kernel_32<const SHIFT_BITS: i32>(data_w: [i16x8; 8]) -> [i16x8; 8] {
+        let tmp0 = data_w[0] + data_w[7];
+        let tmp7 = data_w[0] - data_w[7];
+        let tmp1 = data_w[1] + data_w[6];
+        let tmp6 = data_w[1] - data_w[6];
+        let tmp2 = data_w[2] + data_w[5];
+        let tmp5 = data_w[2] - data_w[5];
+        let tmp3 = data_w[3] + data_w[4];
+        let tmp4 = data_w[3] - data_w[4];
+
+        /* Even part per LL&M figure 1 --- note that published figure is faulty;
+         * rotator "sqrt(2)*c1" should be "sqrt(2)*c6".
+         */
+
+        let tmp10 = tmp0 + tmp3;
+        let tmp13 = tmp0 - tmp3;
+        let tmp11 = tmp1 + tmp2;
+        let tmp12 = tmp1 - tmp2;
+
+        let data_0;
+        let data_4;
+
+        if SHIFT_BITS < 0 {
+            data_0 = tmp10 + tmp11 << -SHIFT_BITS;
+            data_4 = tmp10 - tmp11 << -SHIFT_BITS;
+        } else {
+            data_0 = descale_w(i32x8::from(tmp10 + tmp11), SHIFT_BITS);
+            data_4 = descale_w(i32x8::from(tmp10 - tmp11), SHIFT_BITS);
+        }
+
+        let z1 = (tmp12 + tmp13).mul_widen(i16x8::from(FIX_0_541196100));
+        let data_2 = descale_w(
+            z1 + (tmp13.mul_widen(i16x8::from(FIX_0_765366865))),
+            CONST_BITS + SHIFT_BITS,
+        );
+        let data_6 = descale_w(
+            z1 + (tmp12.mul_widen(i16x8::from(-FIX_1_847759065))),
+            CONST_BITS + SHIFT_BITS,
+        );
+
+        /* Odd part per figure 8 --- note paper omits factor of sqrt(2).
+         * cK represents cos(K*pi/16).
+         * i0..i3 in the paper are tmp4..tmp7 here.
+         */
+
+        let z1 = tmp4 + tmp7;
+        let z2 = tmp5 + tmp6;
+        let z3 = tmp4 + tmp6;
+        let z4 = tmp5 + tmp7;
+        let z5 = (z3 + z4).mul_widen(i16x8::from(FIX_1_175875602));
+        /* sqrt(2) * c3 */
+
+        let tmp4 = tmp4.mul_widen(i16x8::from(FIX_0_298631336));
+        /* sqrt(2) * (-c1+c3+c5-c7) */
+        let tmp5 = tmp5.mul_widen(i16x8::from(FIX_2_053119869));
+        /* sqrt(2) * ( c1+c3-c5+c7) */
+        let tmp6 = tmp6.mul_widen(i16x8::from(FIX_3_072711026));
+        /* sqrt(2) * ( c1+c3+c5-c7) */
+        let tmp7 = tmp7.mul_widen(i16x8::from(FIX_1_501321110));
+        /* sqrt(2) * ( c1+c3-c5-c7) */
+        let z1 = z1.mul_widen(i16x8::from(-FIX_0_899976223));
+        /* sqrt(2) * ( c7-c3) */
+        let z2 = z2.mul_widen(i16x8::from(-FIX_2_562915447));
+        /* sqrt(2) * (-c1-c3) */
+        let z3 = z3.mul_widen(i16x8::from(-FIX_1_961570560));
+        /* sqrt(2) * (-c3-c5) */
+        let z4 = z4.mul_widen(i16x8::from(-FIX_0_390180644));
+        /* sqrt(2) * ( c5-c3) */
+
+        let z3 = z3 + z5;
+        let z4 = z4 + z5;
+
+        let data_7 = descale_w(tmp4 + z1 + z3, CONST_BITS + SHIFT_BITS);
+        let data_5 = descale_w(tmp5 + z2 + z4, CONST_BITS + SHIFT_BITS);
+        let data_3 = descale_w(tmp6 + z2 + z3, CONST_BITS + SHIFT_BITS);
+        let data_1 = descale_w(tmp7 + z1 + z4, CONST_BITS + SHIFT_BITS);
+
         [
             data_0, data_1, data_2, data_3, data_4, data_5, data_6, data_7,
         ]
-        .map(i16x8::from_i32x8_truncate),
-    );
+    }
+
+    /* Pass 1: process rows. */
+    /* Note results are scaled up by sqrt(8) compared to a true DCT; */
+    /* furthermore, we scale the results by 2**PASS1_BITS. */
+
+    let data_w = i16x8::transpose(cast(*data));
+
+    let pass1 = kernel_32::<-2>(data_w);
+
+    let data2 = i16x8::transpose(pass1);
+
+    /* Pass 2: process columns.
+     * We remove the PASS1_BITS scaling, but leave the results scaled up
+     * by an overall factor of 8.
+     */
+
+    let pass2 = kernel_32::<2>(data2);
+
+    *data = cast(pass2);
 }
 
 #[cfg(test)]
@@ -232,7 +372,7 @@ mod tests {
 
     // Inputs and outputs are taken from libjpegs jpeg_fdct_islow for a typical image
 
-    use super::fdct;
+    use super::*;
 
     const INPUT1: [i16; 64] = [
         -70, -71, -70, -68, -67, -67, -67, -67, -72, -73, -72, -70, -69, -69, -68, -69, -75, -76,
