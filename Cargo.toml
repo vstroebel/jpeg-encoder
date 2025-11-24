@@ -12,7 +12,7 @@ repository = "https://github.com/vstroebel/jpeg-encoder"
 rust-version = "1.61"
 
 [features]
-default = ["std", "use_wide"]
+default = ["std"]
 simd = ["std"]
 std = []
 use_wide = ["wide", "bytemuck"]
