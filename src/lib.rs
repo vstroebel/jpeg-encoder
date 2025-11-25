@@ -46,12 +46,19 @@ pub use encoder::{ColorType, Encoder, JpegColorType, SamplingFactor};
 pub use error::EncodingError;
 pub use image_buffer::{cmyk_to_ycck, rgb_to_ycbcr, ImageBuffer};
 pub use quantization::QuantizationTableType;
-pub use writer::{Density, JfifWrite};
+pub use writer::{PixelDensity, PixelDensityUnit, JfifWrite};
 
 #[cfg(feature = "benchmark")]
 pub use fdct::fdct;
+
+#[cfg(feature = "benchmark")]
+pub use image_buffer::RgbImage;
+
 #[cfg(all(feature = "benchmark", feature = "simd", any(target_arch = "x86", target_arch = "x86_64")))]
 pub use avx2::fdct_avx2;
+
+#[cfg(all(feature = "benchmark", feature = "simd", any(target_arch = "x86", target_arch = "x86_64")))]
+pub use avx2::RgbImageAVX2;
 
 #[cfg(test)]
 mod tests {

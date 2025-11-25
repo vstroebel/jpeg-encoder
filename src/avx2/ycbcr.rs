@@ -16,7 +16,7 @@ use crate::{rgb_to_ycbcr, ImageBuffer, JpegColorType};
 
 macro_rules! ycbcr_image_avx2 {
     ($name:ident, $num_colors:expr, $o1:expr, $o2:expr, $o3:expr) => {
-        pub(crate) struct $name<'a>(pub &'a [u8], pub u16, pub u16);
+        pub struct $name<'a>(pub &'a [u8], pub u16, pub u16);
 
         impl<'a> $name<'a> {
             #[target_feature(enable = "avx2")]
