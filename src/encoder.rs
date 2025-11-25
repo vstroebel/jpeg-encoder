@@ -353,11 +353,7 @@ impl<W: JfifWrite> Encoder<W> {
     /// # Errors
     ///
     /// Returns an error if the segment number is invalid or data exceeds the allowed size
-    pub fn add_app_segment(&mut self, segment_nr: u8, data: &[u8]) -> Result<(), EncodingError> {
-        self.add_app_segment_internal(segment_nr, data.to_vec())
-    }
-
-    fn add_app_segment_internal(
+    pub fn add_app_segment(
         &mut self,
         segment_nr: u8,
         data: Vec<u8>,
@@ -400,7 +396,7 @@ impl<W: JfifWrite> Encoder<W> {
             chunk_data.push(num_chunks as u8);
             chunk_data.extend_from_slice(data);
 
-            self.add_app_segment_internal(2, chunk_data)?;
+            self.add_app_segment(2, chunk_data)?;
         }
 
         Ok(())
@@ -421,7 +417,7 @@ impl<W: JfifWrite> Encoder<W> {
         let mut formatted = EXIF_HEADER.to_vec();
         formatted.extend_from_slice(data);
 
-        self.add_app_segment(1, &formatted)
+        self.add_app_segment(1, formatted)
     }
 
     /// Encode an image
