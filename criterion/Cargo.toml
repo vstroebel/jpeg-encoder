@@ -28,3 +28,7 @@ harness = false
 [[bench]]
 name = "fdct"
 harness = false
+
+[[bench]]
+name = "ycbcr"
+harness = false
