@@ -473,7 +473,7 @@ mod tests {
         let mut result = Vec::new();
         let mut encoder = Encoder::new(&mut result, 100);
 
-        encoder.add_app_segment(15, b"HOHOHO\0").unwrap();
+        encoder.add_app_segment(15, b"HOHOHO\0".to_vec()).unwrap();
 
         encoder
             .encode(&data, width, height, ColorType::Rgb)
