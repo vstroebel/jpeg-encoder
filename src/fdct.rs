@@ -71,7 +71,7 @@
  * scaled fixed-point arithmetic, with a minimal number of shifts.
  */
 
-use crate::encoder::Block;
+use crate::encoder::AlignedBlock;
 
 const CONST_BITS: i32 = 13;
 const PASS1_BITS: i32 = 2;
@@ -104,7 +104,7 @@ fn into_el(v: i32) -> i16 {
 
 #[allow(clippy::erasing_op)]
 #[allow(clippy::identity_op)]
-pub fn fdct(data: &mut Block) {
+pub fn fdct(data: &mut AlignedBlock) {
     let data = &mut data.data;
 
     /* Pass 1: process rows. */
@@ -242,7 +242,7 @@ mod tests {
 
     // Inputs and outputs are taken from libjpegs jpeg_fdct_islow for a typical image
 
-    use crate::encoder::Block;
+    use crate::encoder::AlignedBlock;
 
     use super::fdct;
 
@@ -275,11 +275,11 @@ mod tests {
 
     #[test]
     pub fn test_fdct_libjpeg() {
-        let mut i1 = Block::new(INPUT1.clone());
+        let mut i1 = AlignedBlock::new(INPUT1.clone());
         fdct(&mut i1);
         assert_eq!(i1.data, OUTPUT1);
 
-        let mut i2 = Block::new(INPUT2.clone());
+        let mut i2 = AlignedBlock::new(INPUT2.clone());
         fdct(&mut i2);
         assert_eq!(i2.data, OUTPUT2);
     }

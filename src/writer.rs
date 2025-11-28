@@ -1,4 +1,4 @@
-use crate::encoder::{Block, Component};
+use crate::encoder::{AlignedBlock, Component};
 use crate::huffman::{CodingClass, HuffmanTable};
 use crate::marker::{Marker, SOFType};
 use crate::quantization::QuantizationTable;
@@ -292,7 +292,7 @@ impl<W: JfifWrite> JfifWriter<W> {
 
     pub fn write_block(
         &mut self,
-        block: &Block,
+        block: &AlignedBlock,
         prev_dc: i16,
         dc_table: &HuffmanTable,
         ac_table: &HuffmanTable,
@@ -317,7 +317,7 @@ impl<W: JfifWrite> JfifWriter<W> {
 
     pub fn write_ac_block(
         &mut self,
-        block: &Block,
+        block: &AlignedBlock,
         start: usize,
         end: usize,
         ac_table: &HuffmanTable,

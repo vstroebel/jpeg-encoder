@@ -36,19 +36,19 @@ pub enum JpegColorType {
 
 #[derive(Copy, Clone)]
 #[repr(C, align(32))]
-pub(crate) struct Block {
+pub(crate) struct AlignedBlock {
     pub data: [i16; 64],
 }
 
-impl Block {
+impl AlignedBlock {
     pub const fn new(data: [i16; 64]) -> Self {
-        Block { data }
+        AlignedBlock { data }
     }
 }
 
-impl Default for Block {
+impl Default for AlignedBlock {
     fn default() -> Self {
-        Block { data: [0i16; 64] }
+        AlignedBlock { data: [0i16; 64] }
     }
 }
 
@@ -754,7 +754,7 @@ impl<W: JfifWrite> Encoder<W> {
 
                             OP::fdct(&mut block);
 
-                            let mut q_block = Block::default();
+                            let mut q_block = AlignedBlock::default();
 
                             OP::quantize_block(
                                 &block,
@@ -962,7 +962,7 @@ impl<W: JfifWrite> Encoder<W> {
         &mut self,
         image: &I,
         q_tables: &[QuantizationTable; 2],
-    ) -> [Vec<Block>; 4] {
+    ) -> [Vec<AlignedBlock>; 4] {
         let width = image.width();
         let height = image.height();
 
@@ -1024,7 +1024,7 @@ impl<W: JfifWrite> Encoder<W> {
 
                     OP::fdct(&mut block);
 
-                    let mut q_block = Block::default();
+                    let mut q_block = AlignedBlock::default();
 
                     OP::quantize_block(
                         &block,
@@ -1039,7 +1039,7 @@ impl<W: JfifWrite> Encoder<W> {
         blocks
     }
 
-    fn init_block_buffers(&mut self, buffer_size: usize) -> [Vec<Block>; 4] {
+    fn init_block_buffers(&mut self, buffer_size: usize) -> [Vec<AlignedBlock>; 4] {
         // To simplify the code and to give the compiler more infos to optimize stuff we always initialize 4 components
         // Resource overhead should be minimal because an empty Vec doesn't allocate
 
@@ -1067,7 +1067,7 @@ impl<W: JfifWrite> Encoder<W> {
     }
 
     // Create new huffman tables optimized for this image
-    fn optimize_huffman_table(&mut self, blocks: &[Vec<Block>; 4]) {
+    fn optimize_huffman_table(&mut self, blocks: &[Vec<AlignedBlock>; 4]) {
         // TODO: Find out if it's possible to reuse some code from the writer
 
         let max_tables = self.components.len().min(2) as u8;
@@ -1210,7 +1210,7 @@ fn get_block(
     col_stride: usize,
     row_stride: usize,
     width: usize,
-) -> Block {
+) -> AlignedBlock {
     let mut block = [0i16; 64];
 
     for y in 0..8 {
@@ -1222,7 +1222,7 @@ fn get_block(
         }
     }
 
-    Block::new(block)
+    AlignedBlock::new(block)
 }
 
 fn ceil_div(value: usize, div: usize) -> usize {
@@ -1246,12 +1246,12 @@ fn get_num_bits(mut value: i16) -> u8 {
 
 pub(crate) trait Operations {
     #[inline(always)]
-    fn fdct(data: &mut Block) {
+    fn fdct(data: &mut AlignedBlock) {
         fdct(data);
     }
 
     #[inline(always)]
-    fn quantize_block(block: &Block, q_block: &mut Block, table: &QuantizationTable) {
+    fn quantize_block(block: &AlignedBlock, q_block: &mut AlignedBlock, table: &QuantizationTable) {
         for i in 0..64 {
             let z = ZIGZAG[i] as usize & 0x3f;
             q_block.data[i] = table.quantize(block.data[z], z);
