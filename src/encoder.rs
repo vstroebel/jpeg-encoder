@@ -34,6 +34,24 @@ pub enum JpegColorType {
     Ycck,
 }
 
+#[derive(Copy, Clone)]
+#[repr(C, align(32))]
+pub(crate) struct Block {
+    pub data: [i16; 64],
+}
+
+impl Block {
+    pub const fn new(data: [i16; 64]) -> Self {
+        Block { data }
+    }
+}
+
+impl Default for Block {
+    fn default() -> Self {
+        Block { data: [0i16; 64] }
+    }
+}
+
 impl JpegColorType {
     pub(crate) fn get_num_components(self) -> usize {
         use JpegColorType::*;
@@ -729,16 +747,14 @@ impl<W: JfifWrite> Encoder<W> {
                                 &row[i],
                                 block_x * 8 * max_h_sampling + (h_offset * 8),
                                 v_offset * 8,
-                                max_h_sampling
-                                    / component.horizontal_sampling_factor as usize,
-                                max_v_sampling
-                                    / component.vertical_sampling_factor as usize,
+                                max_h_sampling / component.horizontal_sampling_factor as usize,
+                                max_v_sampling / component.vertical_sampling_factor as usize,
                                 buffer_width,
                             );
 
                             OP::fdct(&mut block);
 
-                            let mut q_block = [0i16; 64];
+                            let mut q_block = Block::default();
 
                             OP::quantize_block(
                                 &block,
@@ -753,7 +769,7 @@ impl<W: JfifWrite> Encoder<W> {
                                 &self.huffman_tables[component.ac_huffman_table as usize].1,
                             )?;
 
-                            prev_dc[i] = q_block[0];
+                            prev_dc[i] = q_block.data[0];
                         }
                     }
                 }
@@ -813,7 +829,7 @@ impl<W: JfifWrite> Encoder<W> {
                     &self.huffman_tables[component.ac_huffman_table as usize].1,
                 )?;
 
-                prev_dc = block[0];
+                prev_dc = block.data[0];
 
                 if restart_interval > 0 {
                     if restarts_to_go == 0 {
@@ -869,12 +885,12 @@ impl<W: JfifWrite> Encoder<W> {
                 }
 
                 self.writer.write_dc(
-                    block[0],
+                    block.data[0],
                     prev_dc,
                     &self.huffman_tables[component.dc_huffman_table as usize].0,
                 )?;
 
-                prev_dc = block[0];
+                prev_dc = block.data[0];
 
                 if restart_interval > 0 {
                     if restarts_to_go == 0 {
@@ -946,7 +962,7 @@ impl<W: JfifWrite> Encoder<W> {
         &mut self,
         image: &I,
         q_tables: &[QuantizationTable; 2],
-    ) -> [Vec<[i16; 64]>; 4] {
+    ) -> [Vec<Block>; 4] {
         let width = image.width();
         let height = image.height();
 
@@ -1008,7 +1024,7 @@ impl<W: JfifWrite> Encoder<W> {
 
                     OP::fdct(&mut block);
 
-                    let mut q_block = [0i16; 64];
+                    let mut q_block = Block::default();
 
                     OP::quantize_block(
                         &block,
@@ -1023,7 +1039,7 @@ impl<W: JfifWrite> Encoder<W> {
         blocks
     }
 
-    fn init_block_buffers(&mut self, buffer_size: usize) -> [Vec<[i16; 64]>; 4] {
+    fn init_block_buffers(&mut self, buffer_size: usize) -> [Vec<Block>; 4] {
         // To simplify the code and to give the compiler more infos to optimize stuff we always initialize 4 components
         // Resource overhead should be minimal because an empty Vec doesn't allocate
 
@@ -1051,7 +1067,7 @@ impl<W: JfifWrite> Encoder<W> {
     }
 
     // Create new huffman tables optimized for this image
-    fn optimize_huffman_table(&mut self, blocks: &[Vec<[i16; 64]>; 4]) {
+    fn optimize_huffman_table(&mut self, blocks: &[Vec<Block>; 4]) {
         // TODO: Find out if it's possible to reuse some code from the writer
 
         let max_tables = self.components.len().min(2) as u8;
@@ -1074,7 +1090,7 @@ impl<W: JfifWrite> Encoder<W> {
                     debug_assert!(!blocks[i].is_empty());
 
                     for block in &blocks[i] {
-                        let value = block[0];
+                        let value = block.data[0];
                         let diff = value - prev_dc;
                         let num_bits = get_num_bits(diff);
 
@@ -1106,7 +1122,7 @@ impl<W: JfifWrite> Encoder<W> {
                             for block in &blocks[i] {
                                 let mut zero_run = 0;
 
-                                for &value in &block[start..end] {
+                                for &value in &block.data[start..end] {
                                     if value == 0 {
                                         zero_run += 1;
                                     } else {
@@ -1132,7 +1148,7 @@ impl<W: JfifWrite> Encoder<W> {
                         for block in &blocks[i] {
                             let mut zero_run = 0;
 
-                            for &value in &block[1..] {
+                            for &value in &block.data[1..] {
                                 if value == 0 {
                                     zero_run += 1;
                                 } else {
@@ -1194,7 +1210,7 @@ fn get_block(
     col_stride: usize,
     row_stride: usize,
     width: usize,
-) -> [i16; 64] {
+) -> Block {
     let mut block = [0i16; 64];
 
     for y in 0..8 {
@@ -1206,7 +1222,7 @@ fn get_block(
         }
     }
 
-    block
+    Block::new(block)
 }
 
 fn ceil_div(value: usize, div: usize) -> usize {
@@ -1230,15 +1246,15 @@ fn get_num_bits(mut value: i16) -> u8 {
 
 pub(crate) trait Operations {
     #[inline(always)]
-    fn fdct(data: &mut [i16; 64]) {
+    fn fdct(data: &mut Block) {
         fdct(data);
     }
 
     #[inline(always)]
-    fn quantize_block(block: &[i16; 64], q_block: &mut [i16; 64], table: &QuantizationTable) {
+    fn quantize_block(block: &Block, q_block: &mut Block, table: &QuantizationTable) {
         for i in 0..64 {
             let z = ZIGZAG[i] as usize & 0x3f;
-            q_block[i] = table.quantize(block[z], z);
+            q_block.data[i] = table.quantize(block.data[z], z);
         }
     }
 }

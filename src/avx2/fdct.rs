@@ -57,14 +57,14 @@ const DESCALE_P1: i32 = CONST_BITS - PASS1_BITS;
 const DESCALE_P2: i32 = CONST_BITS + PASS1_BITS;
 
 #[inline(always)]
-pub fn fdct_avx2(data: &mut [i16; 64]) {
+pub fn fdct_avx2(data: &mut Block) {
     unsafe {
         fdct_avx2_internal(data);
     }
 }
 
 #[target_feature(enable = "avx2")]
-unsafe fn fdct_avx2_internal(data: &mut [i16; 64]) {
+unsafe fn fdct_avx2_internal(data: &mut Block) {
     #[allow(non_snake_case)]
     #[inline(always)]
     unsafe fn PW_F130_F054_MF130_F054() -> __m256i {

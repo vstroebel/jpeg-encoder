@@ -71,6 +71,8 @@
  * scaled fixed-point arithmetic, with a minimal number of shifts.
  */
 
+use crate::encoder::Block;
+
 const CONST_BITS: i32 = 13;
 const PASS1_BITS: i32 = 2;
 
@@ -102,7 +104,9 @@ fn into_el(v: i32) -> i16 {
 
 #[allow(clippy::erasing_op)]
 #[allow(clippy::identity_op)]
-pub fn fdct(data: &mut [i16; 64]) {
+pub fn fdct(data: &mut Block) {
+    let data = &mut data.data;
+
     /* Pass 1: process rows. */
     /* Note results are scaled up by sqrt(8) compared to a true DCT; */
     /* furthermore, we scale the results by 2**PASS1_BITS. */
@@ -134,14 +138,8 @@ pub fn fdct(data: &mut [i16; 64]) {
         data2[offset + 4] = (tmp10 - tmp11) << PASS1_BITS;
 
         let z1 = (tmp12 + tmp13) * FIX_0_541196100;
-        data2[offset + 2] = descale(
-            z1 + (tmp13 * FIX_0_765366865),
-            CONST_BITS - PASS1_BITS,
-        );
-        data2[offset + 6] = descale(
-            z1 + (tmp12 * -FIX_1_847759065),
-            CONST_BITS - PASS1_BITS,
-        );
+        data2[offset + 2] = descale(z1 + (tmp13 * FIX_0_765366865), CONST_BITS - PASS1_BITS);
+        data2[offset + 6] = descale(z1 + (tmp12 * -FIX_1_847759065), CONST_BITS - PASS1_BITS);
 
         /* Odd part per figure 8 --- note paper omits factor of sqrt(2).
          * cK represents cos(K*pi/16).
@@ -244,6 +242,8 @@ mod tests {
 
     // Inputs and outputs are taken from libjpegs jpeg_fdct_islow for a typical image
 
+    use crate::encoder::Block;
+
     use super::fdct;
 
     const INPUT1: [i16; 64] = [
@@ -275,12 +275,12 @@ mod tests {
 
     #[test]
     pub fn test_fdct_libjpeg() {
-        let mut i1 = INPUT1.clone();
+        let mut i1 = Block::new(INPUT1.clone());
         fdct(&mut i1);
-        assert_eq!(i1, OUTPUT1);
+        assert_eq!(i1.data, OUTPUT1);
 
-        let mut i2 = INPUT2.clone();
+        let mut i2 = Block::new(INPUT2.clone());
         fdct(&mut i2);
-        assert_eq!(i2, OUTPUT2);
+        assert_eq!(i2.data, OUTPUT2);
     }
 }

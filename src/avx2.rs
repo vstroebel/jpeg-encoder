@@ -9,7 +9,7 @@ pub(crate) struct AVX2Operations;
 
 impl Operations for AVX2Operations {
     #[inline(always)]
-    fn fdct(data: &mut [i16; 64]) {
+    fn fdct(data: &mut Block) {
         fdct_avx2(data);
     }
 }
