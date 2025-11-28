@@ -1,22 +1,22 @@
 #[cfg(target_arch = "x86")]
 use core::arch::x86::{
-    __m256i, _mm256_add_epi32, _mm256_mullo_epi32, _mm256_set1_epi32, _mm256_set_epi32,
+    __m256i, _mm256_add_epi32, _mm256_mullo_epi32, _mm256_set_epi32, _mm256_set1_epi32,
     _mm256_srli_epi32, _mm256_sub_epi32,
 };
 
 #[cfg(target_arch = "x86_64")]
 use core::arch::x86_64::{
-    __m256i, _mm256_add_epi32, _mm256_mullo_epi32, _mm256_set1_epi32, _mm256_set_epi32,
+    __m256i, _mm256_add_epi32, _mm256_mullo_epi32, _mm256_set_epi32, _mm256_set1_epi32,
     _mm256_srli_epi32, _mm256_sub_epi32,
 };
 
 use alloc::vec::Vec;
 
-use crate::{rgb_to_ycbcr, ImageBuffer, JpegColorType};
+use crate::{ImageBuffer, JpegColorType, rgb_to_ycbcr};
 
 macro_rules! ycbcr_image_avx2 {
     ($name:ident, $num_colors:expr, $o1:expr, $o2:expr, $o3:expr) => {
-        pub(crate) struct $name<'a>(pub &'a [u8], pub u16, pub u16);
+        pub struct $name<'a>(pub &'a [u8], pub u16, pub u16);
 
         impl<'a> $name<'a> {
             #[target_feature(enable = "avx2")]

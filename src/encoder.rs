@@ -4,7 +4,7 @@ use crate::image_buffer::*;
 use crate::marker::Marker;
 use crate::quantization::{QuantizationTable, QuantizationTableType};
 use crate::writer::{JfifWrite, JfifWriter, ZIGZAG};
-use crate::{Density, EncodingError};
+use crate::{EncodingError, PixelDensity};
 
 use alloc::vec;
 use alloc::vec::Vec;
@@ -212,7 +212,7 @@ macro_rules! add_component {
 /// # The JPEG encoder
 pub struct Encoder<W: JfifWrite> {
     writer: JfifWriter<W>,
-    density: Density,
+    density: PixelDensity,
     quality: u8,
 
     components: Vec<Component>,
@@ -261,7 +261,7 @@ impl<W: JfifWrite> Encoder<W> {
 
         Encoder {
             writer: JfifWriter::new(w),
-            density: Density::None,
+            density: PixelDensity::default(),
             quality,
             components: vec![],
             quantization_tables,
@@ -277,12 +277,12 @@ impl<W: JfifWrite> Encoder<W> {
     /// Set pixel density for the image
     ///
     /// By default, this value is None which is equal to "1 pixel per pixel".
-    pub fn set_density(&mut self, density: Density) {
+    pub fn set_density(&mut self, density: PixelDensity) {
         self.density = density;
     }
 
     /// Return pixel density
-    pub fn density(&self) -> Density {
+    pub fn density(&self) -> PixelDensity {
         self.density
     }
 
@@ -371,13 +371,13 @@ impl<W: JfifWrite> Encoder<W> {
     /// # Errors
     ///
     /// Returns an error if the segment number is invalid or data exceeds the allowed size
-    pub fn add_app_segment(&mut self, segment_nr: u8, data: &[u8]) -> Result<(), EncodingError> {
+    pub fn add_app_segment(&mut self, segment_nr: u8, data: Vec<u8>) -> Result<(), EncodingError> {
         if segment_nr == 0 || segment_nr > 15 {
             Err(EncodingError::InvalidAppSegment(segment_nr))
         } else if data.len() > 65533 {
             Err(EncodingError::AppSegmentTooLarge(data.len()))
         } else {
-            self.app_segments.push((segment_nr, data.to_vec()));
+            self.app_segments.push((segment_nr, data));
             Ok(())
         }
     }
@@ -403,19 +403,35 @@ impl<W: JfifWrite> Encoder<W> {
             return Err(EncodingError::IccTooLarge(data.len()));
         }
 
-        let mut chunk_data = Vec::with_capacity(MAX_CHUNK_LENGTH);
-
         for (i, data) in data.chunks(MAX_CHUNK_LENGTH).enumerate() {
-            chunk_data.clear();
+            let mut chunk_data = Vec::with_capacity(MAX_CHUNK_LENGTH);
             chunk_data.extend_from_slice(MARKER);
             chunk_data.push(i as u8 + 1);
             chunk_data.push(num_chunks as u8);
             chunk_data.extend_from_slice(data);
 
-            self.add_app_segment(2, &chunk_data)?;
+            self.add_app_segment(2, chunk_data)?;
         }
 
         Ok(())
+    }
+
+    /// Embeds Exif metadata into the image
+    ///
+    /// The maximum allowed data length is 65,528 bytes.
+    ///
+    /// # Errors
+    ///
+    /// Returns an Error if the data exceeds the maximum size for the Exif metadata
+    pub fn add_exif_metadata(&mut self, data: &[u8]) -> Result<(), EncodingError> {
+        // E x i f \0 \0
+        /// The header for an EXIF APP1 segment
+        const EXIF_HEADER: [u8; 6] = [0x45, 0x78, 0x69, 0x66, 0x00, 0x00];
+
+        let mut formatted = EXIF_HEADER.to_vec();
+        formatted.extend_from_slice(data);
+
+        self.add_app_segment(1, formatted)
     }
 
     /// Encode an image

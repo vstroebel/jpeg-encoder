@@ -134,7 +134,7 @@ fn get_line(data: &[u8], y: u16, width: u16, num_colors: usize) -> &[u8] {
 
 macro_rules! ycbcr_image {
     ($name:ident, $num_colors:expr, $o1:expr, $o2:expr, $o3:expr) => {
-        pub(crate) struct $name<'a>(pub &'a [u8], pub u16, pub u16);
+        pub struct $name<'a>(pub &'a [u8], pub u16, pub u16);
 
         impl<'a> ImageBuffer for $name<'a> {
             fn get_jpeg_color_type(&self) -> JpegColorType {

@@ -44,9 +44,9 @@ mod writer;
 
 pub use encoder::{ColorType, Encoder, JpegColorType, SamplingFactor};
 pub use error::EncodingError;
-pub use image_buffer::{cmyk_to_ycck, rgb_to_ycbcr, ImageBuffer};
+pub use image_buffer::{ImageBuffer, cmyk_to_ycck, rgb_to_ycbcr};
 pub use quantization::QuantizationTableType;
-pub use writer::{Density, JfifWrite};
+pub use writer::{JfifWrite, PixelDensity, PixelDensityUnit};
 
 #[cfg(all(
     feature = "benchmark",
@@ -56,6 +56,23 @@ pub use writer::{Density, JfifWrite};
 pub use avx2::fdct_avx2;
 #[cfg(feature = "benchmark")]
 pub use fdct::fdct;
+
+#[cfg(feature = "benchmark")]
+pub use image_buffer::RgbImage;
+
+#[cfg(all(
+    feature = "benchmark",
+    feature = "simd",
+    any(target_arch = "x86", target_arch = "x86_64")
+))]
+pub use avx2::fdct_avx2;
+
+#[cfg(all(
+    feature = "benchmark",
+    feature = "simd",
+    any(target_arch = "x86", target_arch = "x86_64")
+))]
+pub use avx2::RgbImageAVX2;
 
 #[cfg(test)]
 mod tests {
@@ -409,10 +426,12 @@ mod tests {
             .encode(&data, width, height, ColorType::Rgb)
             .unwrap();
 
-        assert!(result
-            .as_slice()
-            .windows(DRI_DATA.len())
-            .any(|w| w == DRI_DATA));
+        assert!(
+            result
+                .as_slice()
+                .windows(DRI_DATA.len())
+                .any(|w| w == DRI_DATA)
+        );
 
         check_result(data, width, height, &mut result, PixelFormat::RGB24);
     }
@@ -432,10 +451,12 @@ mod tests {
             .encode(&data, width, height, ColorType::Rgb)
             .unwrap();
 
-        assert!(result
-            .as_slice()
-            .windows(DRI_DATA.len())
-            .any(|w| w == DRI_DATA));
+        assert!(
+            result
+                .as_slice()
+                .windows(DRI_DATA.len())
+                .any(|w| w == DRI_DATA)
+        );
 
         check_result(data, width, height, &mut result, PixelFormat::RGB24);
     }
@@ -455,10 +476,12 @@ mod tests {
             .encode(&data, width, height, ColorType::Rgb)
             .unwrap();
 
-        assert!(result
-            .as_slice()
-            .windows(DRI_DATA.len())
-            .any(|w| w == DRI_DATA));
+        assert!(
+            result
+                .as_slice()
+                .windows(DRI_DATA.len())
+                .any(|w| w == DRI_DATA)
+        );
 
         check_result(data, width, height, &mut result, PixelFormat::RGB24);
     }
@@ -470,7 +493,7 @@ mod tests {
         let mut result = Vec::new();
         let mut encoder = Encoder::new(&mut result, 100);
 
-        encoder.add_app_segment(15, b"HOHOHO\0").unwrap();
+        encoder.add_app_segment(15, b"HOHOHO\0".to_vec()).unwrap();
 
         encoder
             .encode(&data, width, height, ColorType::Rgb)
@@ -478,10 +501,12 @@ mod tests {
 
         let segment_data = b"\xEF\0\x09HOHOHO\0";
 
-        assert!(result
-            .as_slice()
-            .windows(segment_data.len())
-            .any(|w| w == segment_data));
+        assert!(
+            result
+                .as_slice()
+                .windows(segment_data.len())
+                .any(|w| w == segment_data)
+        );
     }
 
     #[test]
