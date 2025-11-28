@@ -25,6 +25,8 @@ use core::arch::x86_64::{
     _mm256_unpacklo_epi16, _mm256_unpacklo_epi32,
 };
 
+use crate::encoder::AlignedBlock;
+
 const CONST_BITS: i32 = 13;
 const PASS1_BITS: i32 = 2;
 
@@ -57,14 +59,14 @@ const DESCALE_P1: i32 = CONST_BITS - PASS1_BITS;
 const DESCALE_P2: i32 = CONST_BITS + PASS1_BITS;
 
 #[inline(always)]
-pub fn fdct_avx2(data: &mut Block) {
+pub fn fdct_avx2(data: &mut AlignedBlock) {
     unsafe {
         fdct_avx2_internal(data);
     }
 }
 
 #[target_feature(enable = "avx2")]
-unsafe fn fdct_avx2_internal(data: &mut Block) {
+unsafe fn fdct_avx2_internal(data: &mut AlignedBlock) {
     #[allow(non_snake_case)]
     #[inline(always)]
     unsafe fn PW_F130_F054_MF130_F054() -> __m256i {
@@ -412,7 +414,7 @@ unsafe fn fdct_avx2_internal(data: &mut Block) {
         (t1, t2, t3, t4)
     }
 
-    let in_data = core::mem::transmute::<*mut i16, *mut __m256i>(data.as_mut_ptr());
+    let in_data = core::mem::transmute::<*mut i16, *mut __m256i>(data.data.as_mut_ptr());
 
     let ymm4 = _mm256_loadu_si256(in_data);
     let ymm5 = _mm256_loadu_si256(in_data.add(1));
@@ -451,7 +453,7 @@ unsafe fn fdct_avx2_internal(data: &mut Block) {
     let ymm6 = _mm256_permute2x128_si256(ymm0, ymm4, 0x31); // ymm6=data4_5
     let ymm7 = _mm256_permute2x128_si256(ymm2, ymm4, 0x21); // ymm7=data6_7
 
-    let out_data = core::mem::transmute::<*mut i16, *mut __m256i>(data.as_mut_ptr());
+    let out_data = core::mem::transmute::<*mut i16, *mut __m256i>(data.data.as_mut_ptr());
 
     _mm256_storeu_si256(out_data, ymm3);
     _mm256_storeu_si256(out_data.add(1), ymm5);
