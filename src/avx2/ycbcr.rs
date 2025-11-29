@@ -229,7 +229,9 @@ mod tests {
         for (i, pixel) in scalar_result.iter().copied().enumerate() {
             let avx_pixel: [u8; 3] = [buffers[0][i], buffers[1][i], buffers[2][i]];
             if pixel != avx_pixel {
-                panic!("Mismatch at index {i}: scalar result is {pixel:?}, avx result is {avx_pixel:?}");
+                panic!(
+                    "Mismatch at index {i}: scalar result is {pixel:?}, avx result is {avx_pixel:?}"
+                );
             }
         }
     }
