@@ -1,13 +1,15 @@
 #[cfg(target_arch = "x86")]
 use core::arch::x86::{
-    __m256i, _mm256_add_epi32, _mm256_mullo_epi32, _mm256_set1_epi32, _mm256_set_epi32,
-    _mm256_srli_epi32, _mm256_sub_epi32,
+    __m256i, _mm256_add_epi32, _mm256_castsi256_si128, _mm256_mullo_epi32,
+    _mm256_permutevar8x32_epi32, _mm256_set1_epi32, _mm256_setr_epi32, _mm256_shuffle_epi8,
+    _mm256_sub_epi32, _mm_cvtsi128_si64,
 };
 
 #[cfg(target_arch = "x86_64")]
 use core::arch::x86_64::{
-    __m256i, _mm256_add_epi32, _mm256_mullo_epi32, _mm256_set1_epi32, _mm256_set_epi32,
-    _mm256_srli_epi32, _mm256_sub_epi32,
+    __m256i, _mm256_add_epi32, _mm256_castsi256_si128, _mm256_mullo_epi32,
+    _mm256_permutevar8x32_epi32, _mm256_set1_epi32, _mm256_setr_epi32, _mm256_shuffle_epi8,
+    _mm256_sub_epi32, _mm_cvtsi128_si64,
 };
 
 use alloc::vec::Vec;
@@ -27,7 +29,7 @@ macro_rules! ycbcr_image_avx2 {
                 #[target_feature(enable = "avx2")]
                 fn load3(data: &[u8]) -> __m256i {
                     _ = data[7 * $num_colors]; // dummy indexing operation up front to avoid bounds checks later
-                    _mm256_set_epi32(
+                    _mm256_setr_epi32(
                         data[0] as i32,
                         data[1 * $num_colors] as i32,
                         data[2 * $num_colors] as i32,
@@ -41,13 +43,22 @@ macro_rules! ycbcr_image_avx2 {
 
                 #[inline]
                 #[target_feature(enable = "avx2")]
-                fn avx_as_i32_array(data: __m256i) -> [i32; 8] {
-                    // Safety preconditions. Optimized away in release mode, no runtime cost.
-                    assert!(core::mem::size_of::<__m256i>() == core::mem::size_of::<[i32; 8]>());
-                    assert!(core::mem::align_of::<__m256i>() >= core::mem::align_of::<[i32; 8]>());
-                    // SAFETY: size and alignment preconditions checked above.
-                    // Both types are plain old data: no pointers, lifetimes, etc.
-                    unsafe { core::mem::transmute(data) }
+                fn avx_as_u8_array(data: __m256i) -> [u8; 8] {
+                    // Select the third byte of every i32, pack the bytes into
+                    // the low i32 byte of each 128-bit lane: idx = (4 * i) + 2
+                    let u8_shuffle_mask = _mm256_set1_epi32(i32::from_le_bytes([2, 6, 10, 14]));
+                    // Shuffle the lowest i32 lane from the high 128-bit lane
+                    // into the second i32
+                    let u32_permute_mask = _mm256_setr_epi32(0, 4, 0, 0, 0, 0, 0, 0);
+
+                    // ABCD EFGH IJKL MNOP becomes CGKO CGKO CGKO CGKO, for both lanes
+                    let a = _mm256_shuffle_epi8(data, u8_shuffle_mask);
+                    // A... B... becomes AB.. ....
+                    let a = _mm256_permutevar8x32_epi32(a, u32_permute_mask);
+
+                    // No-op cast to __m128i and extract the lower 64-bits
+                    let out = _mm256_castsi256_si128(a);
+                    _mm_cvtsi128_si64(out).to_le_bytes()
                 }
 
                 let [y_buffer, cb_buffer, cr_buffer, _] = buffers;
@@ -82,11 +93,7 @@ macro_rules! ycbcr_image_avx2 {
 
                     let y = _mm256_add_epi32(_mm256_add_epi32(yr, yg), yb);
                     let y = _mm256_add_epi32(y, _mm256_set1_epi32(0x7FFF));
-                    let y = _mm256_srli_epi32(y, 16);
-                    let y: [i32; 8] = avx_as_i32_array(y);
-                    let mut y: [u8; 8] = y.map(|x| x as u8);
-                    y.reverse();
-                    y_buffer.extend_from_slice(&y);
+                    y_buffer.extend(avx_as_u8_array(y));
 
                     let cbr = _mm256_mullo_epi32(cbmulr, r);
                     let cbg = _mm256_mullo_epi32(cbmulg, g);
@@ -95,11 +102,7 @@ macro_rules! ycbcr_image_avx2 {
                     let cb = _mm256_add_epi32(_mm256_sub_epi32(cbr, cbg), cbb);
                     let cb = _mm256_add_epi32(cb, _mm256_set1_epi32(128 << 16));
                     let cb = _mm256_add_epi32(cb, _mm256_set1_epi32(0x7FFF));
-                    let cb = _mm256_srli_epi32(cb, 16);
-                    let cb: [i32; 8] = avx_as_i32_array(cb);
-                    let mut cb: [u8; 8] = cb.map(|x| x as u8);
-                    cb.reverse();
-                    cb_buffer.extend_from_slice(&cb);
+                    cb_buffer.extend(avx_as_u8_array(cb));
 
                     let crr = _mm256_mullo_epi32(crmulr, r);
                     let crg = _mm256_mullo_epi32(crmulg, g);
@@ -108,11 +111,7 @@ macro_rules! ycbcr_image_avx2 {
                     let cr = _mm256_sub_epi32(_mm256_sub_epi32(crr, crg), crb);
                     let cr = _mm256_add_epi32(cr, _mm256_set1_epi32(128 << 16));
                     let cr = _mm256_add_epi32(cr, _mm256_set1_epi32(0x7FFF));
-                    let cr = _mm256_srli_epi32(cr, 16);
-                    let cr: [i32; 8] = avx_as_i32_array(cr);
-                    let mut cr: [u8; 8] = cr.map(|x| x as u8);
-                    cr.reverse();
-                    cr_buffer.extend_from_slice(&cr);
+                    cr_buffer.extend(avx_as_u8_array(cr));
                 }
 
                 for _ in 0..self.width() % 8 {
