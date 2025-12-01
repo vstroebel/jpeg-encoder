@@ -1,15 +1,15 @@
 [package]
 name = "jpeg-encoder"
-version = "0.6.1"
+version = "0.7.0"
 authors = ["Volker Ströbel <volkerstroebel@mysurdity.de>"]
-edition = "2021"
+edition = "2024"
 license = "(MIT OR Apache-2.0) AND IJG"
 description = "JPEG encoder"
 categories = ["multimedia::images"]
 keywords = ["jpg", "jpeg", "encoder", "image"]
 readme = "README.md"
 repository = "https://github.com/vstroebel/jpeg-encoder"
-rust-version = "1.61"
+rust-version = "1.87"
 
 [features]
 default = ["std"]
