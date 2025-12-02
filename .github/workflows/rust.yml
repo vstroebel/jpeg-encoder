@@ -29,6 +29,8 @@ jobs:
       run: cargo build --verbose --features simd
     - name: Run tests
       run: cargo test --verbose --features simd
+    - name: Run tests use_wide
+      run: cargo test --verbose --features use_wide
 
   no_std:
 
