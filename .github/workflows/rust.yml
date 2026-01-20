@@ -49,3 +49,15 @@ jobs:
         run: cargo build --verbose --no-default-features
       - name: Run tests
         run: cargo test --verbose --no-default-features --tests
+
+  rustfmt:
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Run rustfmt check
+        run: cargo fmt -- --check
