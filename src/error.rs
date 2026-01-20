@@ -65,7 +65,6 @@ impl Display for EncodingError {
 }
 
 impl Error for EncodingError {
-
     #[cfg(feature = "std")]
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
@@ -74,4 +73,3 @@ impl Error for EncodingError {
         }
     }
 }
-
