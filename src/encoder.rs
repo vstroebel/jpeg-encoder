@@ -469,19 +469,53 @@ impl<W: JfifWrite> Encoder<W> {
             }
         }
 
-        match color_type {
-            ColorType::Luma => self.encode_image(GrayImage(data, width, height))?,
-            ColorType::Rgb => self.encode_image(RgbImage(data, width, height))?,
-            ColorType::Rgba => self.encode_image(RgbaImage(data, width, height))?,
-            ColorType::Bgr => self.encode_image(BgrImage(data, width, height))?,
-            ColorType::Bgra => self.encode_image(BgraImage(data, width, height))?,
-            ColorType::Ycbcr => self.encode_image(YCbCrImage(data, width, height))?,
-            ColorType::Cmyk => self.encode_image(CmykImage(data, width, height))?,
-            ColorType::CmykAsYcck => self.encode_image(CmykAsYcckImage(data, width, height))?,
-            ColorType::Ycck => self.encode_image(YcckImage(data, width, height))?,
+        #[cfg(feature = "nightly-portable-simd")]
+        {
+            use crate::std_simd::*;
+
+            return match color_type {
+                ColorType::Luma => self
+                    .encode_image_internal::<_, StdSimdOperations>(GrayImage(data, width, height)),
+                ColorType::Rgb => self.encode_image_internal::<_, StdSimdOperations>(
+                    RgbImageStdSimd(data, width, height),
+                ),
+                ColorType::Rgba => self.encode_image_internal::<_, StdSimdOperations>(
+                    RgbaImageStdSimd(data, width, height),
+                ),
+                ColorType::Bgr => self.encode_image_internal::<_, StdSimdOperations>(
+                    BgrImageStdSimd(data, width, height),
+                ),
+                ColorType::Bgra => self.encode_image_internal::<_, StdSimdOperations>(
+                    BgraImageStdSimd(data, width, height),
+                ),
+                ColorType::Ycbcr => self.encode_image_internal::<_, StdSimdOperations>(
+                    YCbCrImage(data, width, height),
+                ),
+                ColorType::Cmyk => self
+                    .encode_image_internal::<_, StdSimdOperations>(CmykImage(data, width, height)),
+                ColorType::CmykAsYcck => self.encode_image_internal::<_, StdSimdOperations>(
+                    CmykAsYcckImage(data, width, height),
+                ),
+                ColorType::Ycck => self
+                    .encode_image_internal::<_, StdSimdOperations>(YcckImage(data, width, height)),
+            };
         }
 
-        Ok(())
+        #[cfg(not(feature = "nightly-portable-simd"))]
+        {
+            match color_type {
+                ColorType::Luma => self.encode_image(GrayImage(data, width, height))?,
+                ColorType::Rgb => self.encode_image(RgbImage(data, width, height))?,
+                ColorType::Rgba => self.encode_image(RgbaImage(data, width, height))?,
+                ColorType::Bgr => self.encode_image(BgrImage(data, width, height))?,
+                ColorType::Bgra => self.encode_image(BgraImage(data, width, height))?,
+                ColorType::Ycbcr => self.encode_image(YCbCrImage(data, width, height))?,
+                ColorType::Cmyk => self.encode_image(CmykImage(data, width, height))?,
+                ColorType::CmykAsYcck => self.encode_image(CmykAsYcckImage(data, width, height))?,
+                ColorType::Ycck => self.encode_image(YcckImage(data, width, height))?,
+            }
+            Ok(())
+        }
     }
 
     /// Encode an image
