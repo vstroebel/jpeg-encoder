@@ -122,11 +122,11 @@ impl<'a> ImageBuffer for GrayImage<'a> {
 }
 
 #[inline(always)]
-fn get_line(data: &[u8], y: u16, width:u16, num_colors: usize) -> &[u8] {
-    let width= usize::from(width);
+fn get_line(data: &[u8], y: u16, width: u16, num_colors: usize) -> &[u8] {
+    let width = usize::from(width);
     let y = usize::from(y);
 
-    let start = y *width * num_colors;
+    let start = y * width * num_colors;
     let end = start + width * num_colors;
 
     &data[start..end]
@@ -155,13 +155,13 @@ macro_rules! ycbcr_image {
 
                 // Doing the convertion in chunks allows the compiler to vectorize the code
                 // A size of 16 seems optimal for SSE and AVX capable hardware
-                const CHUNK_SIZE:usize = 16;
+                const CHUNK_SIZE: usize = 16;
 
-                let mut y_buffer = [0;CHUNK_SIZE];
-                let mut cb_buffer = [0;CHUNK_SIZE];
-                let mut cr_buffer = [0;CHUNK_SIZE];
+                let mut y_buffer = [0; CHUNK_SIZE];
+                let mut cb_buffer = [0; CHUNK_SIZE];
+                let mut cr_buffer = [0; CHUNK_SIZE];
 
-                for chuck in line.chunks_exact($num_colors*CHUNK_SIZE) {
+                for chuck in line.chunks_exact($num_colors * CHUNK_SIZE) {
                     for i in (0..CHUNK_SIZE) {
                         let (y, cb, cr) = rgb_to_ycbcr(
                             chuck[i * $num_colors + $o1],
@@ -182,11 +182,11 @@ macro_rules! ycbcr_image {
                 // Add the remaining pixels in case the number of
                 // pixels is not a multiple of CHUNK_SIZE
                 let pixel = line.len() / $num_colors;
-                for i in pixel/CHUNK_SIZE*CHUNK_SIZE..pixel {
+                for i in pixel / CHUNK_SIZE * CHUNK_SIZE..pixel {
                     let (y, cb, cr) = rgb_to_ycbcr(
-                        line[i*$num_colors + $o1],
-                        line[i*$num_colors + $o2],
-                        line[i*$num_colors + $o3],
+                        line[i * $num_colors + $o1],
+                        line[i * $num_colors + $o2],
+                        line[i * $num_colors + $o3],
                     );
 
                     buffers[0].push(y);
@@ -275,13 +275,7 @@ impl<'a> ImageBuffer for CmykAsYcckImage<'a> {
         let line = get_line(self.0, y, self.width(), 4);
 
         for pixel in line.chunks_exact(4) {
-
-            let (y, cb, cr, k) = cmyk_to_ycck(
-                pixel[0],
-                pixel[1],
-                pixel[2],
-                pixel[3],
-            );
+            let (y, cb, cr, k) = cmyk_to_ycck(pixel[0], pixel[1], pixel[2], pixel[3]);
 
             buffers[0].push(y);
             buffers[1].push(cb);
@@ -310,7 +304,6 @@ impl<'a> ImageBuffer for YcckImage<'a> {
         let line = get_line(self.0, y, self.width(), 4);
 
         for pixel in line.chunks_exact(4) {
-
             buffers[0].push(pixel[0]);
             buffers[1].push(pixel[1]);
             buffers[2].push(pixel[2]);
@@ -330,7 +323,6 @@ mod tests {
 
     #[test]
     fn test_rgb_to_ycbcr() {
-
         assert_rgb_to_ycbcr([0, 0, 0], [0, 128, 128]);
         assert_rgb_to_ycbcr([255, 255, 255], [255, 128, 128]);
         assert_rgb_to_ycbcr([255, 0, 0], [76, 85, 255]);

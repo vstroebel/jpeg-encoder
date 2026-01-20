@@ -1,8 +1,8 @@
+use crate::EncodingError;
 use crate::encoder::Component;
 use crate::huffman::{CodingClass, HuffmanTable};
 use crate::marker::{Marker, SOFType};
 use crate::quantization::QuantizationTable;
-use crate::EncodingError;
 
 /// Represents the pixel density of an image
 ///

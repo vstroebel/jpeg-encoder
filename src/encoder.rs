@@ -4,7 +4,7 @@ use crate::image_buffer::*;
 use crate::marker::Marker;
 use crate::quantization::{QuantizationTable, QuantizationTableType};
 use crate::writer::{JfifWrite, JfifWriter, ZIGZAG};
-use crate::{PixelDensity, EncodingError};
+use crate::{EncodingError, PixelDensity};
 
 use alloc::vec;
 use alloc::vec::Vec;
@@ -353,11 +353,7 @@ impl<W: JfifWrite> Encoder<W> {
     /// # Errors
     ///
     /// Returns an error if the segment number is invalid or data exceeds the allowed size
-    pub fn add_app_segment(
-        &mut self,
-        segment_nr: u8,
-        data: Vec<u8>,
-    ) -> Result<(), EncodingError> {
+    pub fn add_app_segment(&mut self, segment_nr: u8, data: Vec<u8>) -> Result<(), EncodingError> {
         if segment_nr == 0 || segment_nr > 15 {
             Err(EncodingError::InvalidAppSegment(segment_nr))
         } else if data.len() > 65533 {
@@ -749,10 +745,8 @@ impl<W: JfifWrite> Encoder<W> {
                                 &row[i],
                                 block_x * 8 * max_h_sampling + (h_offset * 8),
                                 v_offset * 8,
-                                max_h_sampling
-                                    / component.horizontal_sampling_factor as usize,
-                                max_v_sampling
-                                    / component.vertical_sampling_factor as usize,
+                                max_h_sampling / component.horizontal_sampling_factor as usize,
+                                max_v_sampling / component.vertical_sampling_factor as usize,
                                 buffer_width,
                             );
 
