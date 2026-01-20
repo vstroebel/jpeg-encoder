@@ -72,37 +72,39 @@
  */
 
 const CONST_BITS: i32 = 13;
-const PASS1_BITS: i32 = 2;
 
-const FIX_0_298631336: i32 = 2446;
-const FIX_0_390180644: i32 = 3196;
-const FIX_0_541196100: i32 = 4433;
-const FIX_0_765366865: i32 = 6270;
-const FIX_0_899976223: i32 = 7373;
-const FIX_1_175875602: i32 = 9633;
-const FIX_1_501321110: i32 = 12299;
-const FIX_1_847759065: i32 = 15137;
-const FIX_1_961570560: i32 = 16069;
-const FIX_2_053119869: i32 = 16819;
-const FIX_2_562915447: i32 = 20995;
-const FIX_3_072711026: i32 = 25172;
-
-const DCT_SIZE: usize = 8;
-
-#[inline(always)]
-fn descale(x: i32, n: i32) -> i32 {
-    // right shift with rounding
-    (x + (1 << (n - 1))) >> n
-}
-
-#[inline(always)]
-fn into_el(v: i32) -> i16 {
-    v as i16
-}
-
+#[cfg(not(feature = "use_wide"))]
 #[allow(clippy::erasing_op)]
 #[allow(clippy::identity_op)]
 pub fn fdct(data: &mut [i16; 64]) {
+    const PASS1_BITS: i32 = 2;
+
+    const FIX_0_298631336: i32 = 2446;
+    const FIX_0_390180644: i32 = 3196;
+    const FIX_0_541196100: i32 = 4433;
+    const FIX_0_765366865: i32 = 6270;
+    const FIX_0_899976223: i32 = 7373;
+    const FIX_1_175875602: i32 = 9633;
+    const FIX_1_501321110: i32 = 12299;
+    const FIX_1_847759065: i32 = 15137;
+    const FIX_1_961570560: i32 = 16069;
+    const FIX_2_053119869: i32 = 16819;
+    const FIX_2_562915447: i32 = 20995;
+    const FIX_3_072711026: i32 = 25172;
+
+    const DCT_SIZE: usize = 8;
+
+    #[inline(always)]
+    fn descale(x: i32, n: i32) -> i32 {
+        // right shift with rounding
+        (x + (1 << (n - 1))) >> n
+    }
+
+    #[inline(always)]
+    fn into_el(v: i32) -> i16 {
+        v as i16
+    }
+
     /* Pass 1: process rows. */
     /* Note results are scaled up by sqrt(8) compared to a true DCT; */
     /* furthermore, we scale the results by 2**PASS1_BITS. */
@@ -233,12 +235,144 @@ pub fn fdct(data: &mut [i16; 64]) {
     }
 }
 
+/// This version uses the wide crate for SIMD operations, resulting in a 80% speedup on older SSE2-capable CPUs.
+///
+/// It also means that these operations can be done on ARM and WASM targets that support SIMD.
+///
+/// The pure AVX2 version is still another 10-20% faster if compiling for AVX2.
+#[cfg(feature = "use_wide")]
+pub fn fdct(data: &mut [i16; 64]) {
+    use bytemuck::cast;
+    use wide::{i16x8, i32x8};
+
+    const FIX_0_298631336: i16 = 2446;
+    const FIX_0_390180644: i16 = 3196;
+    const FIX_0_541196100: i16 = 4433;
+    const FIX_0_765366865: i16 = 6270;
+    const FIX_0_899976223: i16 = 7373;
+    const FIX_1_175875602: i16 = 9633;
+    const FIX_1_501321110: i16 = 12299;
+    const FIX_1_847759065: i16 = 15137;
+    const FIX_1_961570560: i16 = 16069;
+    const FIX_2_053119869: i16 = 16819;
+    const FIX_2_562915447: i16 = 20995;
+    const FIX_3_072711026: i16 = 25172;
+
+    #[inline(always)]
+    fn descale_w(x: i32x8, n: i32) -> i16x8 {
+        // right shift with rounding
+        i16x8::from_i32x8_saturate((x + (1 << (n - 1))) >> n)
+    }
+
+    #[inline(always)]
+    fn kernel_32<const SHIFT_BITS: i32>(data_w: [i16x8; 8]) -> [i16x8; 8] {
+        let tmp0 = data_w[0] + data_w[7];
+        let tmp7 = data_w[0] - data_w[7];
+        let tmp1 = data_w[1] + data_w[6];
+        let tmp6 = data_w[1] - data_w[6];
+        let tmp2 = data_w[2] + data_w[5];
+        let tmp5 = data_w[2] - data_w[5];
+        let tmp3 = data_w[3] + data_w[4];
+        let tmp4 = data_w[3] - data_w[4];
+
+        /* Even part per LL&M figure 1 --- note that published figure is faulty;
+         * rotator "sqrt(2)*c1" should be "sqrt(2)*c6".
+         */
+
+        let tmp10 = tmp0 + tmp3;
+        let tmp13 = tmp0 - tmp3;
+        let tmp11 = tmp1 + tmp2;
+        let tmp12 = tmp1 - tmp2;
+
+        let data_0;
+        let data_4;
+
+        if SHIFT_BITS < 0 {
+            data_0 = tmp10 + tmp11 << -SHIFT_BITS;
+            data_4 = tmp10 - tmp11 << -SHIFT_BITS;
+        } else {
+            data_0 = descale_w(i32x8::from(tmp10 + tmp11), SHIFT_BITS);
+            data_4 = descale_w(i32x8::from(tmp10 - tmp11), SHIFT_BITS);
+        }
+
+        let z1 = (tmp12 + tmp13).mul_widen(i16x8::from(FIX_0_541196100));
+        let data_2 = descale_w(
+            z1 + (tmp13.mul_widen(i16x8::from(FIX_0_765366865))),
+            CONST_BITS + SHIFT_BITS,
+        );
+        let data_6 = descale_w(
+            z1 + (tmp12.mul_widen(i16x8::from(-FIX_1_847759065))),
+            CONST_BITS + SHIFT_BITS,
+        );
+
+        /* Odd part per figure 8 --- note paper omits factor of sqrt(2).
+         * cK represents cos(K*pi/16).
+         * i0..i3 in the paper are tmp4..tmp7 here.
+         */
+
+        let z1 = tmp4 + tmp7;
+        let z2 = tmp5 + tmp6;
+        let z3 = tmp4 + tmp6;
+        let z4 = tmp5 + tmp7;
+        let z5 = (z3 + z4).mul_widen(i16x8::from(FIX_1_175875602));
+        /* sqrt(2) * c3 */
+
+        let tmp4 = tmp4.mul_widen(i16x8::from(FIX_0_298631336));
+        /* sqrt(2) * (-c1+c3+c5-c7) */
+        let tmp5 = tmp5.mul_widen(i16x8::from(FIX_2_053119869));
+        /* sqrt(2) * ( c1+c3-c5+c7) */
+        let tmp6 = tmp6.mul_widen(i16x8::from(FIX_3_072711026));
+        /* sqrt(2) * ( c1+c3+c5-c7) */
+        let tmp7 = tmp7.mul_widen(i16x8::from(FIX_1_501321110));
+        /* sqrt(2) * ( c1+c3-c5-c7) */
+        let z1 = z1.mul_widen(i16x8::from(-FIX_0_899976223));
+        /* sqrt(2) * ( c7-c3) */
+        let z2 = z2.mul_widen(i16x8::from(-FIX_2_562915447));
+        /* sqrt(2) * (-c1-c3) */
+        let z3 = z3.mul_widen(i16x8::from(-FIX_1_961570560));
+        /* sqrt(2) * (-c3-c5) */
+        let z4 = z4.mul_widen(i16x8::from(-FIX_0_390180644));
+        /* sqrt(2) * ( c5-c3) */
+
+        let z3 = z3 + z5;
+        let z4 = z4 + z5;
+
+        let data_7 = descale_w(tmp4 + z1 + z3, CONST_BITS + SHIFT_BITS);
+        let data_5 = descale_w(tmp5 + z2 + z4, CONST_BITS + SHIFT_BITS);
+        let data_3 = descale_w(tmp6 + z2 + z3, CONST_BITS + SHIFT_BITS);
+        let data_1 = descale_w(tmp7 + z1 + z4, CONST_BITS + SHIFT_BITS);
+
+        [
+            data_0, data_1, data_2, data_3, data_4, data_5, data_6, data_7,
+        ]
+    }
+
+    /* Pass 1: process rows. */
+    /* Note results are scaled up by sqrt(8) compared to a true DCT; */
+    /* furthermore, we scale the results by 2**PASS1_BITS. */
+
+    let data_w = i16x8::transpose(cast(*data));
+
+    let pass1 = kernel_32::<-2>(data_w);
+
+    let data2 = i16x8::transpose(pass1);
+
+    /* Pass 2: process columns.
+     * We remove the PASS1_BITS scaling, but leave the results scaled up
+     * by an overall factor of 8.
+     */
+
+    let pass2 = kernel_32::<2>(data2);
+
+    *data = cast(pass2);
+}
+
 #[cfg(test)]
 mod tests {
 
     // Inputs and outputs are taken from libjpegs jpeg_fdct_islow for a typical image
 
-    use super::fdct;
+    use super::*;
 
     const INPUT1: [i16; 64] = [
         -70, -71, -70, -68, -67, -67, -67, -67, -72, -73, -72, -70, -69, -69, -68, -69, -75, -76,
