@@ -153,8 +153,41 @@ macro_rules! ycbcr_image {
             fn fill_buffers(&self, y: u16, buffers: &mut [Vec<u8>; 4]) {
                 let line = get_line(self.0, y, self.width(), $num_colors);
 
-                for pixel in line.chunks_exact($num_colors) {
-                    let (y, cb, cr) = rgb_to_ycbcr(pixel[$o1], pixel[$o2], pixel[$o3]);
+                // Doing the convertion in chunks allows the compiler to vectorize the code
+                // A size of 16 seems optimal for SSE and AVX capable hardware
+                const CHUNK_SIZE: usize = 16;
+
+                let mut y_buffer = [0; CHUNK_SIZE];
+                let mut cb_buffer = [0; CHUNK_SIZE];
+                let mut cr_buffer = [0; CHUNK_SIZE];
+
+                for chuck in line.chunks_exact($num_colors * CHUNK_SIZE) {
+                    for i in (0..CHUNK_SIZE) {
+                        let (y, cb, cr) = rgb_to_ycbcr(
+                            chuck[i * $num_colors + $o1],
+                            chuck[i * $num_colors + $o2],
+                            chuck[i * $num_colors + $o3],
+                        );
+
+                        y_buffer[i] = y;
+                        cb_buffer[i] = cb;
+                        cr_buffer[i] = cr;
+                    }
+
+                    buffers[0].extend_from_slice(&y_buffer);
+                    buffers[1].extend_from_slice(&cb_buffer);
+                    buffers[2].extend_from_slice(&cr_buffer);
+                }
+
+                // Add the remaining pixels in case the number of
+                // pixels is not a multiple of CHUNK_SIZE
+                let pixel = line.len() / $num_colors;
+                for i in pixel / CHUNK_SIZE * CHUNK_SIZE..pixel {
+                    let (y, cb, cr) = rgb_to_ycbcr(
+                        line[i * $num_colors + $o1],
+                        line[i * $num_colors + $o2],
+                        line[i * $num_colors + $o3],
+                    );
 
                     buffers[0].push(y);
                     buffers[1].push(cb);

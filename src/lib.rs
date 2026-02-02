@@ -48,12 +48,6 @@ pub use image_buffer::{ImageBuffer, cmyk_to_ycck, rgb_to_ycbcr};
 pub use quantization::QuantizationTableType;
 pub use writer::{JfifWrite, PixelDensity, PixelDensityUnit};
 
-#[cfg(all(
-    feature = "benchmark",
-    feature = "simd",
-    any(target_arch = "x86", target_arch = "x86_64")
-))]
-pub use avx2::fdct_avx2;
 #[cfg(feature = "benchmark")]
 pub use fdct::fdct;
 
