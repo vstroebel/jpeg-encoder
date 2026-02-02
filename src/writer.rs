@@ -1,5 +1,4 @@
 use crate::EncodingError;
-use crate::EncodingError;
 use crate::encoder::{AlignedBlock, Component};
 use crate::huffman::{CodingClass, HuffmanTable};
 use crate::marker::{Marker, SOFType};
