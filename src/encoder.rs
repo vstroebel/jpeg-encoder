@@ -396,7 +396,7 @@ impl<W: JfifWrite> Encoder<W> {
         const MARKER: &[u8; 12] = b"ICC_PROFILE\0";
         const MAX_CHUNK_LENGTH: usize = 65535 - 2 - 12 - 2;
 
-        let num_chunks = ceil_div(data.len(), MAX_CHUNK_LENGTH);
+        let num_chunks = data.len().div_ceil(MAX_CHUNK_LENGTH);
 
         // Sequence number is stored as a byte and starts with 1
         if num_chunks >= 255 {
@@ -710,8 +710,8 @@ impl<W: JfifWrite> Encoder<W> {
         let width = image.width();
         let height = image.height();
 
-        let num_cols = ceil_div(usize::from(width), 8 * max_h_sampling);
-        let num_rows = ceil_div(usize::from(height), 8 * max_v_sampling);
+        let num_cols = usize::from(width).div_ceil(8 * max_h_sampling);
+        let num_rows = usize::from(height).div_ceil(8 * max_v_sampling);
 
         let buffer_width = num_cols * 8 * max_h_sampling;
         let buffer_size = buffer_width * 8 * max_v_sampling;
@@ -984,8 +984,8 @@ impl<W: JfifWrite> Encoder<W> {
 
         let (max_h_sampling, max_v_sampling) = self.get_max_sampling_size();
 
-        let num_cols = ceil_div(usize::from(width), 8 * max_h_sampling) * max_h_sampling;
-        let num_rows = ceil_div(usize::from(height), 8 * max_v_sampling) * max_v_sampling;
+        let num_cols = usize::from(width).div_ceil(8 * max_h_sampling) * max_h_sampling;
+        let num_rows = usize::from(height).div_ceil(8 * max_v_sampling) * max_v_sampling;
 
         debug_assert!(num_cols > 0);
         debug_assert!(num_rows > 0);
@@ -1009,8 +1009,8 @@ impl<W: JfifWrite> Encoder<W> {
             }
         }
 
-        let num_cols = ceil_div(usize::from(width), 8);
-        let num_rows = ceil_div(usize::from(height), 8);
+        let num_cols = usize::from(width).div_ceil(8);
+        let num_rows = usize::from(height).div_ceil(8);
 
         debug_assert!(num_cols > 0);
         debug_assert!(num_rows > 0);
@@ -1021,8 +1021,8 @@ impl<W: JfifWrite> Encoder<W> {
             let h_scale = max_h_sampling / component.horizontal_sampling_factor as usize;
             let v_scale = max_v_sampling / component.vertical_sampling_factor as usize;
 
-            let cols = ceil_div(num_cols, h_scale);
-            let rows = ceil_div(num_rows, v_scale);
+            let cols = num_cols.div_ceil(h_scale);
+            let rows = num_rows.div_ceil(v_scale);
 
             debug_assert!(cols > 0);
             debug_assert!(rows > 0);
@@ -1239,10 +1239,6 @@ fn get_block(
     }
 
     AlignedBlock::new(block)
-}
-
-fn ceil_div(value: usize, div: usize) -> usize {
-    value / div + usize::from(value % div != 0)
 }
 
 fn get_num_bits(mut value: i16) -> u8 {

@@ -127,6 +127,7 @@ fn get_line(data: &[u8], y: u16, width: u16, num_colors: usize) -> &[u8] {
     let y = usize::from(y);
 
     let start = y * width * num_colors;
+    let start = y * width * num_colors;
     let end = start + width * num_colors;
 
     &data[start..end]
@@ -242,6 +243,7 @@ impl<'a> ImageBuffer for CmykAsYcckImage<'a> {
         let line = get_line(self.0, y, self.width(), 4);
 
         for pixel in line.chunks_exact(4) {
+            let (y, cb, cr, k) = cmyk_to_ycck(pixel[0], pixel[1], pixel[2], pixel[3]);
             let (y, cb, cr, k) = cmyk_to_ycck(pixel[0], pixel[1], pixel[2], pixel[3]);
 
             buffers[0].push(y);
