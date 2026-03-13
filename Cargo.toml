@@ -14,6 +14,7 @@ rust-version = "1.87"
 [features]
 default = ["std"]
 simd = ["std"]
+nightly-portable-simd = ["std"]
 std = []
 
 # DO NOT USE THIS IN PRODUCTION. Expose several internal functions for benchmark purposes.
