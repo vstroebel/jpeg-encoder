@@ -187,6 +187,27 @@ impl SamplingFactor {
     }
 }
 
+/// # Chroma subsampling method
+///
+/// When a chroma subsampling factor other than 1x1 is used, each output chroma
+/// sample covers a block of `h × v` source pixels. This enum controls how that
+/// block is reduced to a single value.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ChromaSubsamplingMethod {
+    /// Use the top-left pixel of each block.
+    ///
+    /// Fastest option and the historical default of this crate.
+    Nearest,
+    /// Average all pixels in each block.
+    ///
+    /// Matches the default downsampler in libjpeg / libjpeg-turbo
+    /// (`h2v2_downsample` in `jcsample.c`), including its per-column dither of
+    /// the rounding bias so that rounding error averages to zero across a row.
+    /// Produces noticeably better quality on images with sharp colored edges
+    /// such as screenshots or rendered text.
+    Average,
+}
+
 pub(crate) struct Component {
     pub id: u8,
     pub quantization_table: u8,
@@ -220,6 +241,7 @@ pub struct Encoder<W: JfifWrite> {
     huffman_tables: [(HuffmanTable, HuffmanTable); 2],
 
     sampling_factor: SamplingFactor,
+    chroma_subsampling_method: ChromaSubsamplingMethod,
 
     progressive_scans: Option<u8>,
 
@@ -267,6 +289,7 @@ impl<W: JfifWrite> Encoder<W> {
             quantization_tables,
             huffman_tables,
             sampling_factor,
+            chroma_subsampling_method: ChromaSubsamplingMethod::Nearest,
             progressive_scans: None,
             restart_interval: None,
             optimize_huffman_table: false,
@@ -294,6 +317,19 @@ impl<W: JfifWrite> Encoder<W> {
     /// Get chroma subsampling factor
     pub fn sampling_factor(&self) -> SamplingFactor {
         self.sampling_factor
+    }
+
+    /// Set the chroma subsampling method
+    ///
+    /// Has no effect when the sampling factor is 1x1 (no chroma subsampling).
+    /// See [`ChromaSubsamplingMethod`] for the quality/speed trade-off.
+    pub fn set_chroma_subsampling_method(&mut self, method: ChromaSubsamplingMethod) {
+        self.chroma_subsampling_method = method;
+    }
+
+    /// Get the chroma subsampling method
+    pub fn chroma_subsampling_method(&self) -> ChromaSubsamplingMethod {
+        self.chroma_subsampling_method
     }
 
     /// Set quantization tables for luma and chroma components
@@ -757,16 +793,28 @@ impl<W: JfifWrite> Encoder<W> {
                 }
 
                 for (i, component) in self.components.iter().enumerate() {
+                    let h_stride = max_h_sampling / component.horizontal_sampling_factor as usize;
+                    let v_stride = max_v_sampling / component.vertical_sampling_factor as usize;
+                    let average = self.chroma_subsampling_method
+                        == ChromaSubsamplingMethod::Average
+                        && (h_stride > 1 || v_stride > 1);
+
                     for v_offset in 0..component.vertical_sampling_factor as usize {
                         for h_offset in 0..component.horizontal_sampling_factor as usize {
-                            let mut block = get_block(
-                                &row[i],
-                                block_x * 8 * max_h_sampling + (h_offset * 8),
-                                v_offset * 8,
-                                max_h_sampling / component.horizontal_sampling_factor as usize,
-                                max_v_sampling / component.vertical_sampling_factor as usize,
-                                buffer_width,
-                            );
+                            let bx = block_x * 8 * max_h_sampling + (h_offset * 8);
+                            let by = v_offset * 8;
+                            let mut block = if average {
+                                get_block_averaged(
+                                    &row[i],
+                                    bx,
+                                    by,
+                                    h_stride,
+                                    v_stride,
+                                    buffer_width,
+                                )
+                            } else {
+                                get_block(&row[i], bx, by, h_stride, v_stride, buffer_width)
+                            };
 
                             OP::fdct(&mut block);
 
@@ -1027,16 +1075,18 @@ impl<W: JfifWrite> Encoder<W> {
             debug_assert!(cols > 0);
             debug_assert!(rows > 0);
 
+            let average = self.chroma_subsampling_method == ChromaSubsamplingMethod::Average
+                && (h_scale > 1 || v_scale > 1);
+
             for block_y in 0..rows {
                 for block_x in 0..cols {
-                    let mut block = get_block(
-                        &row[i],
-                        block_x * 8 * h_scale,
-                        block_y * 8 * v_scale,
-                        h_scale,
-                        v_scale,
-                        buffer_width,
-                    );
+                    let bx = block_x * 8 * h_scale;
+                    let by = block_y * 8 * v_scale;
+                    let mut block = if average {
+                        get_block_averaged(&row[i], bx, by, h_scale, v_scale, buffer_width)
+                    } else {
+                        get_block(&row[i], bx, by, h_scale, v_scale, buffer_width)
+                    };
 
                     OP::fdct(&mut block);
 
@@ -1241,6 +1291,42 @@ fn get_block(
     AlignedBlock::new(block)
 }
 
+fn get_block_averaged(
+    data: &[u8],
+    start_x: usize,
+    start_y: usize,
+    col_stride: usize,
+    row_stride: usize,
+    width: usize,
+) -> AlignedBlock {
+    let mut block = [0i16; 64];
+    let n = col_stride * row_stride;
+    // libjpeg alternates the rounding bias per output column (e.g. 1,2,1,2 for
+    // n=4) so that half-way cases round down and up in equal measure, keeping
+    // the mean rounding error at zero across the row. See jcsample.c.
+    let bias_even = (n - 1) / 2;
+    let bias_odd = n / 2;
+
+    for y in 0..8 {
+        for x in 0..8 {
+            let ix = start_x + (x * col_stride);
+            let iy = start_y + (y * row_stride);
+
+            let mut sum = 0usize;
+            for dy in 0..row_stride {
+                for dx in 0..col_stride {
+                    sum += data[(iy + dy) * width + (ix + dx)] as usize;
+                }
+            }
+
+            let bias = if x & 1 == 0 { bias_even } else { bias_odd };
+            block[y * 8 + x] = ((sum + bias) / n) as i16 - 128;
+        }
+    }
+
+    AlignedBlock::new(block)
+}
+
 fn get_num_bits(mut value: i16) -> u8 {
     if value < 0 {
         value = -value;
@@ -1279,9 +1365,42 @@ impl Operations for DefaultOperations {}
 mod tests {
     use alloc::vec;
 
-    use crate::encoder::get_num_bits;
+    use crate::encoder::{get_block, get_block_averaged, get_num_bits};
     use crate::writer::get_code;
     use crate::{Encoder, SamplingFactor};
+
+    #[test]
+    fn test_get_block_averaged_2x2() {
+        // 16x16 buffer, alternating columns of 0 and 252.
+        // Every 2x2 source block is {0, 252, 0, 252}; box average = (504 + 2) / 4 = 126.
+        let width = 16;
+        let mut data = vec![0u8; width * 16];
+        for (i, v) in data.iter_mut().enumerate() {
+            *v = if (i % width) % 2 == 0 { 0 } else { 252 };
+        }
+
+        let nearest = get_block(&data, 0, 0, 2, 2, width);
+        let averaged = get_block_averaged(&data, 0, 0, 2, 2, width);
+
+        assert!(nearest.data.iter().all(|&v| v == -128));
+        assert!(averaged.data.iter().all(|&v| v == 126 - 128));
+    }
+
+    #[test]
+    fn test_get_block_averaged_dithers_bias() {
+        // Every 2x2 block is {1, 2, 1, 2}: sum=6, true mean 1.5.
+        // Even output cols use bias=1 → (6+1)/4 = 1; odd cols use bias=2 → 2.
+        let width = 16;
+        let mut data = vec![0u8; width * 16];
+        for (i, v) in data.iter_mut().enumerate() {
+            *v = if (i % width) % 2 == 0 { 1 } else { 2 };
+        }
+
+        let averaged = get_block_averaged(&data, 0, 0, 2, 2, width);
+        assert_eq!(averaged.data[0], 1 - 128);
+        assert_eq!(averaged.data[1], 2 - 128);
+        assert_eq!(averaged.data[8], 1 - 128);
+    }
 
     #[test]
     fn test_get_num_bits() {
