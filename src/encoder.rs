@@ -187,24 +187,12 @@ impl SamplingFactor {
     }
 }
 
-/// # Chroma subsampling method
-///
-/// When a chroma subsampling factor other than 1x1 is used, each output chroma
-/// sample covers a block of `h × v` source pixels. This enum controls how that
-/// block is reduced to a single value.
+/// Method for reducing each chroma block to a single sample when subsampling
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ChromaSubsamplingMethod {
-    /// Use the top-left pixel of each block.
-    ///
-    /// Fastest option and the historical default of this crate.
+    /// Use the top-left pixel of each block (fastest, default)
     Nearest,
-    /// Average all pixels in each block.
-    ///
-    /// Matches the default downsampler in libjpeg / libjpeg-turbo
-    /// (`h2v2_downsample` in `jcsample.c`), including its per-column dither of
-    /// the rounding bias so that rounding error averages to zero across a row.
-    /// Produces noticeably better quality on images with sharp colored edges
-    /// such as screenshots or rendered text.
+    /// Box-average each block, matching libjpeg's `h2v2_downsample`
     Average,
 }
 
@@ -320,9 +308,6 @@ impl<W: JfifWrite> Encoder<W> {
     }
 
     /// Set the chroma subsampling method
-    ///
-    /// Has no effect when the sampling factor is 1x1 (no chroma subsampling).
-    /// See [`ChromaSubsamplingMethod`] for the quality/speed trade-off.
     pub fn set_chroma_subsampling_method(&mut self, method: ChromaSubsamplingMethod) {
         self.chroma_subsampling_method = method;
     }
@@ -1301,9 +1286,7 @@ fn get_block_averaged(
 ) -> AlignedBlock {
     let mut block = [0i16; 64];
     let n = col_stride * row_stride;
-    // libjpeg alternates the rounding bias per output column (e.g. 1,2,1,2 for
-    // n=4) so that half-way cases round down and up in equal measure, keeping
-    // the mean rounding error at zero across the row. See jcsample.c.
+    // Alternate the rounding bias per column as libjpeg does (see jcsample.c)
     let bias_even = (n - 1) / 2;
     let bias_odd = n / 2;
 
@@ -1371,8 +1354,7 @@ mod tests {
 
     #[test]
     fn test_get_block_averaged_2x2() {
-        // 16x16 buffer, alternating columns of 0 and 252.
-        // Every 2x2 source block is {0, 252, 0, 252}; box average = (504 + 2) / 4 = 126.
+        // Every 2x2 block is {0, 252, 0, 252}; averages to 126.
         let width = 16;
         let mut data = vec![0u8; width * 16];
         for (i, v) in data.iter_mut().enumerate() {
@@ -1388,8 +1370,7 @@ mod tests {
 
     #[test]
     fn test_get_block_averaged_dithers_bias() {
-        // Every 2x2 block is {1, 2, 1, 2}: sum=6, true mean 1.5.
-        // Even output cols use bias=1 → (6+1)/4 = 1; odd cols use bias=2 → 2.
+        // Every 2x2 block averages to 1.5; bias dither rounds to 1 on even cols, 2 on odd.
         let width = 16;
         let mut data = vec![0u8; width * 16];
         for (i, v) in data.iter_mut().enumerate() {
