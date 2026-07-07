@@ -1,26 +1,33 @@
-Independent JPEG Group License (IJG)
-====================================
+jpeg-encoder IJG License
+========================
 
-The following is the LEGAL ISSUES section of the Independent JPEG Group
-README, reproduced verbatim from libjpeg-turbo's `README.ijg`:
+The jpeg-encoder crate declares license "(MIT OR Apache-2.0) AND IJG".
+The published crate includes MIT and Apache license files, but it does not
+currently include a top-level IJG license file. This Chromium-local file
+documents the IJG terms for the IJG-derived portions of jpeg-encoder until the
+crate publishes the missing license file upstream.
 
-  https://github.com/libjpeg-turbo/libjpeg-turbo/blob/main/README.ijg
+The IJG-derived portions include, at least:
 
-This text is also referenced by SPDX as canonical source material for the
-`IJG` license identifier:
+- src/fdct.rs, which is ported from mozjpeg to Rust and states that it was part
+  of the Independent JPEG Group's software.
+- src/avx2/fdct.rs, which is ported from mozjpeg / jfdctint-avx2.asm to Rust
+  and states that it is based on the x86 SIMD extension for the IJG JPEG
+  library.
 
-  https://spdx.org/licenses/IJG.html
+In the IJG terms below, "this software" refers to the IJG-derived portions of
+jpeg-encoder listed above, not to the jpeg-encoder crate as a whole. The rest
+of jpeg-encoder remains covered by the crate's MIT OR Apache-2.0 terms.
 
-
-LEGAL ISSUES
-============
+Conditions of distribution and use
+==================================
 
 In plain English:
 
 1. We don't promise that this software works.  (But if you find any bugs,
    please let us know!)
 2. You can use this software for whatever you want.  You don't have to pay us.
-3. You may not pretend that you wrote this software.  If you use it in a
+3. You may not pretend that you wrote this software. If you use it in a
    program, you must acknowledge somewhere in your documentation that
    you've used the IJG code.
 
@@ -54,7 +61,7 @@ acknowledge us.
 
 Permission is NOT granted for the use of any IJG author's name or company name
 in advertising or publicity relating to this software or products derived from
-it.  This software may be referred to only as "the Independent JPEG Group's
+it. This software may be referred to only as "the Independent JPEG Group's
 software".
 
 We specifically permit and encourage the use of this software as the basis of
