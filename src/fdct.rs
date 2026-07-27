@@ -71,12 +71,14 @@
  * scaled fixed-point arithmetic, with a minimal number of shifts.
  */
 
+use crate::encoder::AlignedBlock;
+
 const CONST_BITS: i32 = 13;
 
 #[cfg(not(feature = "use_wide"))]
 #[allow(clippy::erasing_op)]
 #[allow(clippy::identity_op)]
-pub fn fdct(data: &mut [i16; 64]) {
+pub fn fdct(data: &mut AlignedBlock) {
     const PASS1_BITS: i32 = 2;
 
     const FIX_0_298631336: i32 = 2446;
@@ -104,6 +106,8 @@ pub fn fdct(data: &mut [i16; 64]) {
     fn into_el(v: i32) -> i16 {
         v as i16
     }
+
+    let data = &mut data.data;
 
     /* Pass 1: process rows. */
     /* Note results are scaled up by sqrt(8) compared to a true DCT; */
@@ -241,7 +245,7 @@ pub fn fdct(data: &mut [i16; 64]) {
 ///
 /// The pure AVX2 version is still another 10-20% faster if compiling for AVX2.
 #[cfg(feature = "use_wide")]
-pub fn fdct(data: &mut [i16; 64]) {
+pub fn fdct(data: &mut AlignedBlock) {
     use bytemuck::cast;
     use wide::{i16x8, i32x8};
 
@@ -347,6 +351,8 @@ pub fn fdct(data: &mut [i16; 64]) {
         ]
     }
 
+    let data = &mut data.data;
+
     /* Pass 1: process rows. */
     /* Note results are scaled up by sqrt(8) compared to a true DCT; */
     /* furthermore, we scale the results by 2**PASS1_BITS. */
@@ -403,12 +409,12 @@ mod tests {
 
     #[test]
     pub fn test_fdct_libjpeg() {
-        let mut i1 = INPUT1.clone();
+        let mut i1 = AlignedBlock::new(INPUT1.clone());
         fdct(&mut i1);
-        assert_eq!(i1, OUTPUT1);
+        assert_eq!(i1.data, OUTPUT1);
 
-        let mut i2 = INPUT2.clone();
+        let mut i2 = AlignedBlock::new(INPUT2.clone());
         fdct(&mut i2);
-        assert_eq!(i2, OUTPUT2);
+        assert_eq!(i2.data, OUTPUT2);
     }
 }

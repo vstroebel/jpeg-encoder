@@ -1,6 +1,5 @@
 use alloc::fmt::Display;
-#[cfg(feature = "std")]
-use std::error::Error;
+use core::error::Error;
 
 /// # The error type for encoding
 #[derive(Debug)]
@@ -65,8 +64,8 @@ impl Display for EncodingError {
     }
 }
 
-#[cfg(feature = "std")]
 impl Error for EncodingError {
+    #[cfg(feature = "std")]
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
             EncodingError::IoError(err) => Some(err),
