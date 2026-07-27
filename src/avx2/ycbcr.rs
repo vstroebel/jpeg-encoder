@@ -1,15 +1,15 @@
 #[cfg(target_arch = "x86")]
 use core::arch::x86::{
-    __m256i, _mm256_add_epi32, _mm256_castsi256_si128, _mm256_mullo_epi32,
+    __m256i, _mm_cvtsi128_si64, _mm256_add_epi32, _mm256_castsi256_si128, _mm256_mullo_epi32,
     _mm256_permutevar8x32_epi32, _mm256_set1_epi32, _mm256_setr_epi32, _mm256_shuffle_epi8,
-    _mm256_sub_epi32, _mm_cvtsi128_si64,
+    _mm256_sub_epi32,
 };
 
 #[cfg(target_arch = "x86_64")]
 use core::arch::x86_64::{
-    __m256i, _mm256_add_epi32, _mm256_castsi256_si128, _mm256_mullo_epi32,
+    __m256i, _mm_cvtsi128_si64, _mm256_add_epi32, _mm256_castsi256_si128, _mm256_mullo_epi32,
     _mm256_permutevar8x32_epi32, _mm256_set1_epi32, _mm256_setr_epi32, _mm256_shuffle_epi8,
-    _mm256_sub_epi32, _mm_cvtsi128_si64,
+    _mm256_sub_epi32,
 };
 
 use alloc::vec::Vec;
