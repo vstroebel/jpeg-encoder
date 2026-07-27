@@ -297,6 +297,16 @@ impl<W: JfifWrite> Encoder<W> {
         self.density
     }
 
+    /// Set quality setting. Quality must be between 1 and 100 where 100 is the highest image quality.
+    pub fn set_quality(&mut self, quality: u8) {
+        self.quality = quality;
+    }
+
+    /// Get quality setting
+    pub fn quality(&self) -> u8 {
+        self.quality
+    }
+
     /// Set chroma subsampling factor
     pub fn set_sampling_factor(&mut self, sampling: SamplingFactor) {
         self.sampling_factor = sampling;
