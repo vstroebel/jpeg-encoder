@@ -50,6 +50,12 @@ test = false
 doc = false
 
 [[bin]]
+name = "encode_rgb_subsampled_average"
+path = "fuzz_targets/encode_rgb_subsampled_average.rs"
+test = false
+doc = false
+
+[[bin]]
 name = "encode_rgb_progressive"
 path = "fuzz_targets/encode_rgb_progressive.rs"
 test = false

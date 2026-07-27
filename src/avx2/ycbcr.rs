@@ -14,7 +14,7 @@ use core::arch::x86_64::{
 
 use alloc::vec::Vec;
 
-use crate::{rgb_to_ycbcr, ImageBuffer, JpegColorType};
+use crate::{ImageBuffer, JpegColorType, rgb_to_ycbcr};
 
 macro_rules! ycbcr_image_avx2 {
     ($name:ident, $num_colors:expr, $o1:expr, $o2:expr, $o3:expr) => {
@@ -228,7 +228,9 @@ mod tests {
         for (i, pixel) in scalar_result.iter().copied().enumerate() {
             let avx_pixel: [u8; 3] = [buffers[0][i], buffers[1][i], buffers[2][i]];
             if pixel != avx_pixel {
-                panic!("Mismatch at index {i}: scalar result is {pixel:?}, avx result is {avx_pixel:?}");
+                panic!(
+                    "Mismatch at index {i}: scalar result is {pixel:?}, avx result is {avx_pixel:?}"
+                );
             }
         }
     }
