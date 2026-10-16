@@ -1274,6 +1274,16 @@ fn get_block(
 ) -> AlignedBlock {
     let mut block = [0i16; 64];
 
+    if col_stride == 1 && row_stride == 1 {
+        for (y, out) in block.chunks_exact_mut(8).enumerate() {
+            let start = (start_y + y) * width + start_x;
+            for (value, &pixel) in out.iter_mut().zip(&data[start..start + 8]) {
+                *value = (pixel as i16) - 128;
+            }
+        }
+        return AlignedBlock::new(block);
+    }
+
     for y in 0..8 {
         for x in 0..8 {
             let ix = start_x + (x * col_stride);
@@ -1343,9 +1353,9 @@ pub(crate) trait Operations {
 
     #[inline(always)]
     fn quantize_block(block: &AlignedBlock, q_block: &mut AlignedBlock, table: &QuantizationTable) {
-        for i in 0..64 {
-            let z = ZIGZAG[i] as usize & 0x3f;
-            q_block.data[i] = table.quantize(block.data[z], z);
+        let natural: [i16; 64] = core::array::from_fn(|z| table.quantize(block.data[z], z));
+        for (value, &z) in q_block.data.iter_mut().zip(ZIGZAG.iter()) {
+            *value = natural[z as usize & 0x3f];
         }
     }
 }
