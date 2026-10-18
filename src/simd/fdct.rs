@@ -144,8 +144,12 @@ fn pack<S: Simd>(a: i32x8<S>, b: i32x8<S>) -> i16x16<S> {
     // Narrow each 128-bit half: [a0..a3, b0..b3, a4..a7, b4..b7].
     // Descaled FDCT values fit i16.
     #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-    if let Some(avx2) = a.simd.level().as_avx2() {
-        return pack_avx2(avx2, a.into(), b.into()).simd_into(a.simd);
+    {
+        if let Some(avx512) = a.simd.level().as_avx512() {
+            return pack_avx512(a, b)
+        } else if let Some(avx2) = a.simd.level().as_avx2() {
+            return pack_avx2(avx2, a.into(), b.into()).simd_into(a.simd);
+        }
     }
     let (al, ah) = a.split();
     let (bl, bh) = b.split();
@@ -160,6 +164,19 @@ fearless_simd::kernel!(
         _mm256_packs_epi32(a, b)
     }
 );
+
+// Tecnically not restricted to AVX-512 but only faster there
+#[inline(always)]
+fn pack_avx512<S: Simd>(a: i32x8<S>, b: i32x8<S>) -> i16x16<S> {
+    // Select the low 16 bits in [a0..a3, b0..b3, a4..a7, b4..b7] order.
+    let indices = [
+        0, 1, 4, 5, 8, 9, 12, 13, 32, 33, 36, 37, 40, 41, 44, 45,
+        16, 17, 20, 21, 24, 25, 28, 29, 48, 49, 52, 53, 56, 57, 60, 61,
+    ];
+    #[cfg(target_endian = "big")]
+    let indices = indices.map(|i| i + 2);
+    a.concat_swizzle_dyn(b, indices).bitcast()
+}
 
 #[inline(always)]
 fn swap_halves<S: Simd>(a: i16x16<S>) -> i16x16<S> {
