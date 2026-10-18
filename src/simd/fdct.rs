@@ -8,13 +8,6 @@
  */
 
 use crate::encoder::AlignedBlock;
-#[cfg(any(
-    target_arch = "x86",
-    target_arch = "x86_64",
-    target_arch = "aarch64",
-    all(target_arch = "wasm32", target_feature = "simd128")
-))]
-use fearless_simd::i32x4;
 use fearless_simd::{Level, dispatch, i16x16, i32x8, prelude::*};
 
 pub fn fdct(data: &mut AlignedBlock) {
@@ -23,96 +16,10 @@ pub fn fdct(data: &mut AlignedBlock) {
 }
 
 // All helpers must inline into dispatch!'s target-feature context.
-// Intrinsics absent from the portable API live in kernel! wrappers.
-#[inline(always)]
-fn madd<S: Simd>(a: i16x16<S>, b: i16x16<S>) -> i32x8<S> {
-    #[cfg(any(
-        target_arch = "x86",
-        target_arch = "x86_64",
-        target_arch = "aarch64",
-        all(target_arch = "wasm32", target_feature = "simd128")
-    ))]
-    let simd = a.simd;
-    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-    {
-        if let Some(avx2) = simd.level().as_avx2() {
-            return madd_avx2(avx2, a.into(), b.into()).simd_into(simd);
-        }
-        if let Some(sse2) = simd.level().as_sse2() {
-            let (al, ah) = a.split();
-            let (bl, bh) = b.split();
-            let low: i32x4<S> = madd_sse2(sse2, al.into(), bl.into()).simd_into(simd);
-            let high: i32x4<S> = madd_sse2(sse2, ah.into(), bh.into()).simd_into(simd);
-            return low.combine(high);
-        }
-    }
-    #[cfg(target_arch = "aarch64")]
-    if let Some(neon) = simd.level().as_neon() {
-        let (al, ah) = a.split();
-        let (bl, bh) = b.split();
-        let low: i32x4<S> = madd_neon(neon, al.into(), bl.into()).simd_into(simd);
-        let high: i32x4<S> = madd_neon(neon, ah.into(), bh.into()).simd_into(simd);
-        return low.combine(high);
-    }
-    #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
-    if let Some(wasm) = simd.level().as_wasm_simd128() {
-        let (al, ah) = a.split();
-        let (bl, bh) = b.split();
-        let low: i32x4<S> = madd_wasm(wasm, al.into(), bl.into()).simd_into(simd);
-        let high: i32x4<S> = madd_wasm(wasm, ah.into(), bh.into()).simd_into(simd);
-        return low.combine(high);
-    }
-    madd_portable(a, b)
-}
-
-#[inline(always)]
-fn madd_portable<S: Simd>(a: i16x16<S>, b: i16x16<S>) -> i32x8<S> {
-    let (al, ah) = a.widen();
-    let (bl, bh) = b.widen();
-    let (even, odd) = (al * bl).deinterleave(ah * bh);
-    // SIMD addition wraps, including the (-32768 * -32768) * 2 corner case.
-    even + odd
-}
-
 #[cfg(target_arch = "x86")]
-use core::arch::x86::{__m128i, __m256i, _mm_madd_epi16, _mm256_madd_epi16, _mm256_packs_epi32};
+use core::arch::x86::{__m256i, _mm256_packs_epi32};
 #[cfg(target_arch = "x86_64")]
-use core::arch::x86_64::{__m128i, __m256i, _mm_madd_epi16, _mm256_madd_epi16, _mm256_packs_epi32};
-
-fearless_simd::kernel!(
-    #[inline(always)]
-    fn madd_avx2(simd: Avx2, a: __m256i, b: __m256i) -> __m256i {
-        _mm256_madd_epi16(a, b)
-    }
-);
-fearless_simd::kernel!(
-    #[inline(always)]
-    fn madd_sse2(simd: Sse2, a: __m128i, b: __m128i) -> __m128i {
-        _mm_madd_epi16(a, b)
-    }
-);
-
-#[cfg(target_arch = "aarch64")]
-use core::arch::aarch64::{
-    int16x8_t, int32x4_t, vget_high_s16, vget_low_s16, vmull_s16, vpaddq_s32,
-};
-fearless_simd::kernel!(
-    #[inline(always)]
-    fn madd_neon(simd: Neon, a: int16x8_t, b: int16x8_t) -> int32x4_t {
-        let low = vmull_s16(vget_low_s16(a), vget_low_s16(b));
-        let high = vmull_s16(vget_high_s16(a), vget_high_s16(b));
-        vpaddq_s32(low, high)
-    }
-);
-
-#[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
-use core::arch::wasm32::{i32x4_dot_i16x8, v128};
-fearless_simd::kernel!(
-    #[inline(always)]
-    fn madd_wasm(simd: WasmSimd128, a: v128, b: v128) -> v128 {
-        i32x4_dot_i16x8(a, b)
-    }
-);
+use core::arch::x86_64::{__m256i, _mm256_packs_epi32};
 
 // AVX2 unpack operates separately in each 128-bit block. Whole-vector
 // interleave would instead put all of a's lower half into the first output.
@@ -245,22 +152,28 @@ fn pass<S: Simd, const FIRST: bool>(v: [i16x16<S>; 4]) -> [i16x16<S>; 4] {
     // data6 = tmp12*(4433-15137) + tmp13*4433
     let c26 = coefficients(simd, [4433 + 6270, 4433], [4433 - 15137, 4433]);
     let (a, b) = unpack16(even_diff, swap_halves(even_diff));
-    let data26 = descale::<_, FIRST>(madd(a, c26), madd(b, c26));
+    let data26 = descale::<_, FIRST>(a.pairwise_dot_product(c26), b.pairwise_dot_product(c26));
 
     // Combine z5 into z3 and z4 before multiplication.
     let z34 = diff23 + diff07;
     let (a, b) = unpack16(z34, swap_halves(z34));
     let c34 = coefficients(simd, [9633 - 16069, 9633], [9633 - 3196, 9633]);
-    let zlow = madd(a, c34);
-    let zhigh = madd(b, c34);
+    let zlow = a.pairwise_dot_product(c34);
+    let zhigh = b.pairwise_dot_product(c34);
 
     // Similarly combine z1/z2 into the four remaining odd products.
     let c75 = coefficients(simd, [2446 - 7373, -7373], [16819 - 20995, -20995]);
     let (a, b) = unpack16(diff23, swap_halves(diff07));
-    let data75 = descale::<_, FIRST>(madd(a, c75) + zlow, madd(b, c75) + zhigh);
+    let data75 = descale::<_, FIRST>(
+        a.pairwise_dot_product(c75) + zlow,
+        b.pairwise_dot_product(c75) + zhigh,
+    );
     let c31 = coefficients(simd, [25172 - 20995, -20995], [12299 - 7373, -7373]);
     let (a, b) = unpack16(diff07, swap_halves(diff23));
-    let data31 = descale::<_, FIRST>(madd(a, c31) + zlow, madd(b, c31) + zhigh);
+    let data31 = descale::<_, FIRST>(
+        a.pairwise_dot_product(c31) + zlow,
+        b.pairwise_dot_product(c31) + zhigh,
+    );
     [data04, data31, data26, data75]
 }
 
@@ -375,7 +288,7 @@ mod tests {
     }
 
     #[inline(always)]
-    fn check_madd<S: Simd>(simd: S) {
+    fn check_pairwise_dot_product<S: Simd>(simd: S) {
         let inputs = [
             ([i16::MIN; 16], [i16::MIN; 16]),
             (
@@ -392,17 +305,16 @@ mod tests {
                 (i32::from(a[2 * i]) * i32::from(b[2 * i]))
                     .wrapping_add(i32::from(a[2 * i + 1]) * i32::from(b[2 * i + 1]))
             });
-            let a = a.simd_into(simd);
-            let b = b.simd_into(simd);
-            assert_eq!(<[i32; 8]>::from(madd(a, b)), expected);
-            assert_eq!(<[i32; 8]>::from(madd_portable(a, b)), expected);
+            let a = i16x16::simd_from(simd, a);
+            let b = i16x16::simd_from(simd, b);
+            assert_eq!(<[i32; 8]>::from(a.pairwise_dot_product(b)), expected);
         }
     }
 
     #[test]
     fn adjacent_pair_multiply_add() {
         for level in levels() {
-            dispatch!(level, simd => check_madd(simd));
+            dispatch!(level, simd => check_pairwise_dot_product(simd));
         }
     }
 

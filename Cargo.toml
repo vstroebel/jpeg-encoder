@@ -22,11 +22,12 @@ use_wide = ["dep:fearless_simd"]
 benchmark = []
 
 [dependencies]
-fearless_simd = { version = "1.1", optional = true, default-features = false, features = ["libm"] }
+# pairwise_dot_product is not released yet: https://github.com/linebender/fearless_simd/pull/415
+fearless_simd = { git = "https://github.com/linebender/fearless_simd", rev = "7eb902414bb283a8bcdd066816cc19a65a8c8aae", optional = true, default-features = false, features = ["libm"] }
 
 [dev-dependencies]
 jpeg-decoder = { version = "0.3", default-features = false }
-fearless_simd = { version = "1.1", default-features = false, features = ["libm", "force_support_fallback"] }
+fearless_simd = { git = "https://github.com/linebender/fearless_simd", rev = "7eb902414bb283a8bcdd066816cc19a65a8c8aae", default-features = false, features = ["libm", "force_support_fallback"] }
 
 [profile.dev]
 opt-level = 1
