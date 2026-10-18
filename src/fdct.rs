@@ -73,6 +73,8 @@
 
 use crate::encoder::AlignedBlock;
 
+pub use fdct_scalar as fdct;
+
 const CONST_BITS: i32 = 13;
 const PASS1_BITS: i32 = 2;
 
@@ -104,7 +106,7 @@ fn into_el(v: i32) -> i16 {
 
 #[allow(clippy::erasing_op)]
 #[allow(clippy::identity_op)]
-pub fn fdct(data: &mut AlignedBlock) {
+pub fn fdct_scalar(data: &mut AlignedBlock) {
     let data = &mut data.data;
 
     /* Pass 1: process rows. */
