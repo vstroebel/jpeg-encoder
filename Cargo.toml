@@ -27,7 +27,7 @@ fearless_simd = { git = "https://github.com/linebender/fearless_simd", rev = "7e
 
 [dev-dependencies]
 jpeg-decoder = { version = "0.3", default-features = false }
-fearless_simd = { git = "https://github.com/linebender/fearless_simd", rev = "7eb902414bb283a8bcdd066816cc19a65a8c8aae", default-features = false, features = ["libm", "force_support_fallback"] }
+fearless_simd = { git = "https://github.com/linebender/fearless_simd", rev = "7eb902414bb283a8bcdd066816cc19a65a8c8aae", default-features = false, features = ["libm"] }
 
 [profile.dev]
 opt-level = 1

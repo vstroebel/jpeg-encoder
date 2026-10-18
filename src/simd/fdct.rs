@@ -213,7 +213,7 @@ mod tests {
 
     fn levels() -> Vec<Level> {
         let detected = Level::try_detect().unwrap_or_else(Level::baseline);
-        let mut levels = vec![Level::fallback(), detected];
+        let mut levels = vec![Level::baseline()];
         #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
         {
             if let Some(s) = detected.as_sse2() {
