@@ -76,9 +76,12 @@ use crate::encoder::AlignedBlock;
 const CONST_BITS: i32 = 13;
 
 #[cfg(not(feature = "use_wide"))]
+pub use fdct_scalar as fdct;
+
+#[cfg(any(test, not(feature = "use_wide")))]
 #[allow(clippy::erasing_op)]
 #[allow(clippy::identity_op)]
-pub fn fdct(data: &mut AlignedBlock) {
+pub fn fdct_scalar(data: &mut AlignedBlock) {
     const PASS1_BITS: i32 = 2;
 
     const FIX_0_298631336: i32 = 2446;

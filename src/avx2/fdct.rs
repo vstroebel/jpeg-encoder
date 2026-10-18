@@ -11,18 +11,18 @@
 use core::arch::x86::{
     __m256i, _mm256_add_epi16, _mm256_add_epi32, _mm256_loadu_si256, _mm256_madd_epi16,
     _mm256_packs_epi32, _mm256_permute2x128_si256, _mm256_permute4x64_epi64, _mm256_set_epi16,
-    _mm256_set_epi32, _mm256_sign_epi16, _mm256_slli_epi16, _mm256_srai_epi16, _mm256_srai_epi32,
-    _mm256_storeu_si256, _mm256_sub_epi16, _mm256_unpackhi_epi16, _mm256_unpackhi_epi32,
-    _mm256_unpacklo_epi16, _mm256_unpacklo_epi32,
+    _mm256_set_epi32, _mm256_set1_epi16, _mm256_sign_epi16, _mm256_slli_epi16, _mm256_srai_epi16,
+    _mm256_srai_epi32, _mm256_storeu_si256, _mm256_sub_epi16, _mm256_unpackhi_epi16,
+    _mm256_unpackhi_epi32, _mm256_unpacklo_epi16, _mm256_unpacklo_epi32,
 };
 
 #[cfg(target_arch = "x86_64")]
 use core::arch::x86_64::{
     __m256i, _mm256_add_epi16, _mm256_add_epi32, _mm256_loadu_si256, _mm256_madd_epi16,
     _mm256_packs_epi32, _mm256_permute2x128_si256, _mm256_permute4x64_epi64, _mm256_set_epi16,
-    _mm256_set_epi32, _mm256_sign_epi16, _mm256_slli_epi16, _mm256_srai_epi16, _mm256_srai_epi32,
-    _mm256_storeu_si256, _mm256_sub_epi16, _mm256_unpackhi_epi16, _mm256_unpackhi_epi32,
-    _mm256_unpacklo_epi16, _mm256_unpacklo_epi32,
+    _mm256_set_epi32, _mm256_set1_epi16, _mm256_sign_epi16, _mm256_slli_epi16, _mm256_srai_epi16,
+    _mm256_srai_epi32, _mm256_storeu_si256, _mm256_sub_epi16, _mm256_unpackhi_epi16,
+    _mm256_unpackhi_epi32, _mm256_unpacklo_epi16, _mm256_unpacklo_epi32,
 };
 
 use crate::encoder::AlignedBlock;
@@ -196,16 +196,8 @@ fn fdct_avx2_internal(data: &mut AlignedBlock) {
     #[allow(non_snake_case)]
     #[inline]
     fn PW_DESCALE_P2X() -> __m256i {
-        _mm256_set_epi32(
-            1 << (PASS1_BITS - 1),
-            1 << (PASS1_BITS - 1),
-            1 << (PASS1_BITS - 1),
-            1 << (PASS1_BITS - 1),
-            1 << (PASS1_BITS - 1),
-            1 << (PASS1_BITS - 1),
-            1 << (PASS1_BITS - 1),
-            1 << (PASS1_BITS - 1),
-        )
+        // The rounding offset is added to 16-bit lanes, including odd lanes.
+        _mm256_set1_epi16(1 << (PASS1_BITS - 1))
     }
 
     // In-place 8x8x16-bit matrix transpose using AVX2 instructions
@@ -485,4 +477,31 @@ fn avx_store(input: __m256i, output: &mut [i16]) {
     assert!(core::mem::size_of::<[i16; 16]>() == core::mem::size_of::<__m256i>());
     // SAFETY: we've checked sizes above. The load is unaligned, so no alignment requirements.
     unsafe { _mm256_storeu_si256(output.as_mut_ptr() as *mut __m256i, input) }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_fdct_avx2_rounding_matches_scalar() {
+        if !std::is_x86_feature_detected!("avx2") {
+            return;
+        }
+
+        // This block exposed missing rounding in odd columns of output rows 0 and 4.
+        let input = [
+            -103, -27, 49, -104, 110, 67, 94, -37, 71, 14, 105, -112, 84, -89, -17, -35, 109, 98,
+            89, 48, -119, 45, 104, -57, 67, 88, 57, 28, -87, -125, 123, 96, -71, -33, 1, -12, 52,
+            -47, 11, 88, 11, 98, -73, 25, -126, -40, 98, -99, -5, -51, -21, 125, -30, 110, 29, -18,
+            -70, 96, -119, -99, 77, 94, 21, 18,
+        ];
+        let mut expected = AlignedBlock::new(input);
+        crate::fdct::fdct_scalar(&mut expected);
+
+        let mut actual = AlignedBlock::new(input);
+        fdct_avx2(&mut actual);
+
+        assert_eq!(actual.data, expected.data);
+    }
 }
