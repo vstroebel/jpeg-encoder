@@ -75,9 +75,9 @@ fn madd_portable<S: Simd>(a: i16x16<S>, b: i16x16<S>) -> i32x8<S> {
 }
 
 #[cfg(target_arch = "x86")]
-use core::arch::x86::{__m128i, __m256i, _mm_madd_epi16, _mm256_madd_epi16};
+use core::arch::x86::{__m128i, __m256i, _mm_madd_epi16, _mm256_madd_epi16, _mm256_packs_epi32};
 #[cfg(target_arch = "x86_64")]
-use core::arch::x86_64::{__m128i, __m256i, _mm_madd_epi16, _mm256_madd_epi16};
+use core::arch::x86_64::{__m128i, __m256i, _mm_madd_epi16, _mm256_madd_epi16, _mm256_packs_epi32};
 
 fearless_simd::kernel!(
     #[inline(always)]
@@ -141,12 +141,25 @@ fn unpack32<S: Simd>(a: i16x16<S>, b: i16x16<S>) -> (i16x16<S>, i16x16<S>) {
 
 #[inline(always)]
 fn pack<S: Simd>(a: i32x8<S>, b: i32x8<S>) -> i16x16<S> {
-    // [a0..a3, b0..b3, a4..a7, b4..b7], not [a0..a7, b0..b7].
-    // The permutation cancels the AVX2 backend's whole-vector ordering fixup,
-    // leaving one YMM pack. Splitting and packing halves inhibits that fusion.
-    // Descaled FDCT values fit i16; relaxed_narrow checks this in debug builds.
-    permute64::<_, 0xd8>(a.relaxed_narrow(b))
+    // Narrow each 128-bit half: [a0..a3, b0..b3, a4..a7, b4..b7].
+    // Descaled FDCT values fit i16.
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+    if let Some(avx2) = a.simd.level().as_avx2() {
+        return pack_avx2(avx2, a.into(), b.into()).simd_into(a.simd);
+    }
+    let (al, ah) = a.split();
+    let (bl, bh) = b.split();
+    al.relaxed_narrow(bl).combine(ah.relaxed_narrow(bh))
 }
+
+// The intrinsic has exactly the half-wise layout required by pack, including
+// when called from the AVX-512 backend.
+fearless_simd::kernel!(
+    #[inline(always)]
+    fn pack_avx2(simd: Avx2, a: __m256i, b: __m256i) -> __m256i {
+        _mm256_packs_epi32(a, b)
+    }
+);
 
 #[inline(always)]
 fn swap_halves<S: Simd>(a: i16x16<S>) -> i16x16<S> {
@@ -155,9 +168,12 @@ fn swap_halves<S: Simd>(a: i16x16<S>) -> i16x16<S> {
 }
 
 #[inline(always)]
-fn permute64<S: Simd, const IMM: u8>(a: i16x16<S>) -> i16x16<S> {
-    a.swizzle_dyn(core::array::from_fn::<_, 32, _>(|i| {
-        (((IMM as usize >> (2 * (i / 8))) & 3) * 8 + i % 8) as u8
+fn column_pair<S: Simd, const REVERSED: bool>(a: i16x16<S>) -> i16x16<S> {
+    // Input: [first_top, second_top, first_bottom, second_bottom].
+    // Each group holds four i16 values. Join the top and bottom of each column.
+    let halves = if REVERSED { [1, 3, 0, 2] } else { [0, 2, 1, 3] };
+    a.swizzle_dyn(core::array::from_fn::<_, 32, _>(|byte| {
+        (halves[byte / 8] * 8 + byte % 8) as u8
     }))
 }
 
@@ -170,10 +186,10 @@ fn transpose<S: Simd>(v: [i16x16<S>; 4]) -> [i16x16<S>; 4] {
     let (b, d) = unpack32(b, d);
     // Output pairs columns (1,0), (3,2), (4,5), (6,7).
     [
-        permute64::<_, 0x8d>(a),
-        permute64::<_, 0x8d>(c),
-        permute64::<_, 0xd8>(b),
-        permute64::<_, 0xd8>(d),
+        column_pair::<_, true>(a),
+        column_pair::<_, true>(c),
+        column_pair::<_, false>(b),
+        column_pair::<_, false>(d),
     ]
 }
 
