@@ -40,6 +40,8 @@ mod huffman;
 mod image_buffer;
 mod marker;
 mod quantization;
+#[cfg(feature = "use_wide")]
+mod simd;
 mod writer;
 
 pub use encoder::{ChromaSubsamplingMethod, ColorType, Encoder, JpegColorType, SamplingFactor};
