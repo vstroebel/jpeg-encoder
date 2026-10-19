@@ -1,6 +1,6 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
-use jpeg_encoder::fdct;
+use jpeg_encoder::{fdct, AlignedBlock};
 use std::time::Duration;
 
 const INPUT1: [i16; 64] = [
@@ -18,7 +18,7 @@ fn criterion_benchmark(c: &mut Criterion) {
 
     group.bench_function("default fdct", |b| {
         b.iter(|| {
-            let mut input = INPUT1.clone();
+            let mut input = AlignedBlock::new(INPUT1);
             fdct(
                 black_box(&mut input),
             );
@@ -31,7 +31,7 @@ fn criterion_benchmark(c: &mut Criterion) {
         b.iter(|| {
             use jpeg_encoder::fdct_avx2;
 
-            let mut input = INPUT1.clone();
+            let mut input = AlignedBlock::new(INPUT1);
             fdct_avx2(
                 black_box(&mut input),
             );

@@ -41,7 +41,7 @@ pub enum JpegColorType {
 
 #[derive(Copy, Clone)]
 #[repr(C, align(32))]
-pub(crate) struct AlignedBlock {
+pub struct AlignedBlock {
     pub data: [i16; 64],
 }
 
