@@ -2,7 +2,7 @@
 
 use alloc::vec::Vec;
 use fearless_simd::{Level, dispatch, i32x8, prelude::*, u8x16, u32x8};
-#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+#[cfg(any(target_arch = "x86", target_arch = "x86_64", target_arch = "aarch64"))]
 use fearless_simd::{i32x16, u8x64, u32x16};
 
 use crate::{ImageBuffer, JpegColorType, rgb_to_ycbcr};
@@ -39,9 +39,8 @@ fn pack<S: Simd>(data: i32x8<S>) -> [u8; 8] {
     <[u8; 16]>::from(bytes)[..8].try_into().unwrap()
 }
 
-// AVX-512 VBMI selects bytes across the entire 64-byte vector, allowing
-// sixteen RGB pixels per batch without overlapping loads or lane rearrangement.
-#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+// Process sixteen pixels using AVX-512 wide vectors or groups of NEON vectors.
+#[cfg(any(target_arch = "x86", target_arch = "x86_64", target_arch = "aarch64"))]
 #[inline(always)]
 fn load16<S: Simd, const N: usize, const OFFSET: usize>(simd: S, data: &[u8]) -> i32x16<S> {
     // RGB has only 48 bytes. Copy exactly those bytes and leave the rest zero;
@@ -51,14 +50,20 @@ fn load16<S: Simd, const N: usize, const OFFSET: usize>(simd: S, data: &[u8]) ->
     padded[..16 * N].copy_from_slice(&data[..16 * N]);
     let pixels = u8x64::from_slice(simd, &padded);
     if N == 4 {
-        // RGBA/BGRA already occupy one little-endian u32 per pixel on x86.
+        // RGBA/BGRA already occupy one u32 per pixel.
         let words: i32x16<S> = pixels.bitcast();
-        return (words >> (OFFSET * 8) as u32) & 255;
+        let byte = if cfg!(target_endian = "little") {
+            OFFSET
+        } else {
+            3 - OFFSET
+        };
+        return (words >> (byte * 8) as u32) & 255;
     }
     // Selecting a zero padding byte for the upper three bytes also widens
-    // each color channel to i32, using just one VPERMB per channel.
+    // each color channel to i32 (one VPERMB per channel on AVX-512).
     let indices = core::array::from_fn::<_, 64, _>(|i| {
-        if i % 4 == 0 {
+        let low_byte = if cfg!(target_endian = "little") { 0 } else { 3 };
+        if i % 4 == low_byte {
             ((i / 4) * N + OFFSET) as u8
         } else {
             63
@@ -67,7 +72,7 @@ fn load16<S: Simd, const N: usize, const OFFSET: usize>(simd: S, data: &[u8]) ->
     pixels.swizzle_dyn(indices).bitcast()
 }
 
-#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+#[cfg(any(target_arch = "x86", target_arch = "x86_64", target_arch = "aarch64"))]
 #[inline(always)]
 fn pack16<S: Simd>(data: i32x16<S>) -> [u8; 16] {
     let data: u32x16<S> = (data >> 16).bitcast();
@@ -91,7 +96,11 @@ fn convert<S: Simd, const N: usize, const R: usize, const G: usize, const B: usi
     crs.reserve(width);
 
     #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-    let line = if simd.level().as_avx512().is_some() {
+    let use_16 = simd.level().as_avx512().is_some();
+    #[cfg(target_arch = "aarch64")]
+    let use_16 = simd.level().as_neon().is_some();
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64", target_arch = "aarch64"))]
+    let line = if use_16 {
         let mut chunks = line.chunks_exact(16 * N);
         for data in &mut chunks {
             let r = load16::<_, N, R>(simd, data);
