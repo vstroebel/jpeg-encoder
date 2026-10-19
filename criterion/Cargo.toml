@@ -11,6 +11,7 @@ members = ["."]
 
 [features]
 simd = ["jpeg-encoder/simd"]
+use_wide = ["jpeg-encoder/use_wide"]
 
 [dependencies]
 jpeg-encoder = {path = "..", features = ["benchmark"]}

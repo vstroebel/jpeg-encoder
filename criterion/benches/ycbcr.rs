@@ -1,12 +1,12 @@
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{
+    black_box, criterion_group, criterion_main, measurement::WallTime, BenchmarkGroup, Criterion,
+    Throughput,
+};
 
-use jpeg_encoder::{ImageBuffer, RgbImage};
+use jpeg_encoder::ImageBuffer;
 use std::time::Duration;
 
-fn create_bench_img() -> (Vec<u8>, u16, u16) {
-    let width = 1001;
-    let height = 500;
-
+fn create_bench_img(width: usize, height: usize) -> Vec<u8> {
     let mut data = Vec::with_capacity(width * height * 3);
 
     for y in 0..height {
@@ -51,53 +51,74 @@ fn create_bench_img() -> (Vec<u8>, u16, u16) {
         }
     }
 
-    (data, width as u16, height as u16)
+    data
 }
 
-fn criterion_benchmark(c: &mut Criterion) {
-    let (data, width, height) = create_bench_img();
-    let res1 = Vec::with_capacity(usize::from(width));
-    let res2 = Vec::with_capacity(usize::from(width));
-    let res3 = Vec::with_capacity(usize::from(width));
-    let res4 = Vec::with_capacity(usize::from(width));
-
-    let mut res = [res1, res2, res3, res4];
-
-    let mut group = c.benchmark_group("ycbcr");
-    group.measurement_time(Duration::from_secs(45));
-    group.warm_up_time(Duration::from_secs(10));
-
-    group.bench_function("default ycbcr", |b| {
-        let image_buffer = RgbImage(&data, width, height);
-
+fn bench_image(group: &mut BenchmarkGroup<'_, WallTime>, name: &str, image: impl ImageBuffer) {
+    let mut res = core::array::from_fn(|_| Vec::with_capacity(usize::from(image.width())));
+    group.bench_function(name, |b| {
         b.iter(|| {
-            for y in 0..height {
+            for y in 0..image.height() {
                 res[0].clear();
                 res[1].clear();
                 res[2].clear();
-                image_buffer.fill_buffers(y, black_box(&mut res));
+                image.fill_buffers(y, black_box(&mut res));
             }
             black_box(&res);
         });
     });
+}
 
-    #[cfg(all(feature = "simd", any(target_arch = "x86", target_arch = "x86_64")))]
-    group.bench_function("ycbcr avx2", |b| {
-        use jpeg_encoder::RgbImageAVX2;
-        let image_buffer = RgbImageAVX2(&data, width, height);
+fn criterion_benchmark(c: &mut Criterion) {
+    for width in [1001, 1920] {
+        let height = 500;
+        let rgb = create_bench_img(width as usize, height as usize);
+        let rgba: Vec<u8> = rgb
+            .chunks_exact(3)
+            .flat_map(|p| [p[0], p[1], p[2], 255])
+            .collect();
+        let bgr: Vec<u8> = rgb
+            .chunks_exact(3)
+            .flat_map(|p| [p[2], p[1], p[0]])
+            .collect();
+        let bgra: Vec<u8> = rgb
+            .chunks_exact(3)
+            .flat_map(|p| [p[2], p[1], p[0], 255])
+            .collect();
 
-        b.iter(|| {
-            for y in 0..height {
-                res[0].clear();
-                res[1].clear();
-                res[2].clear();
-                image_buffer.fill_buffers(y, black_box(&mut res));
-            }
-            black_box(&res);
-        })
-    });
-
-    group.finish();
+        macro_rules! compare {
+            ($format:literal, $data:ident, $scalar:ident, $avx:ident, $portable:ident) => {{
+                let mut group = c.benchmark_group(format!("ycbcr/{}/{width}", $format));
+                group.measurement_time(Duration::from_secs(3));
+                group.warm_up_time(Duration::from_secs(1));
+                group.throughput(Throughput::Elements(u64::from(width) * u64::from(height)));
+                bench_image(
+                    &mut group,
+                    "scalar",
+                    jpeg_encoder::$scalar(&$data, width, height),
+                );
+                #[cfg(all(feature = "simd", any(target_arch = "x86", target_arch = "x86_64")))]
+                if std::is_x86_feature_detected!("avx2") {
+                    bench_image(
+                        &mut group,
+                        "avx2",
+                        jpeg_encoder::$avx(&$data, width, height),
+                    );
+                }
+                #[cfg(feature = "use_wide")]
+                bench_image(
+                    &mut group,
+                    "portable",
+                    jpeg_encoder::$portable(&$data, width, height),
+                );
+                group.finish();
+            }};
+        }
+        compare!("rgb", rgb, RgbImage, RgbImageAVX2, RgbImageSimd);
+        compare!("rgba", rgba, RgbaImage, RgbaImageAVX2, RgbaImageSimd);
+        compare!("bgr", bgr, BgrImage, BgrImageAVX2, BgrImageSimd);
+        compare!("bgra", bgra, BgraImage, BgraImageAVX2, BgraImageSimd);
+    }
 }
 
 criterion_group!(benches, criterion_benchmark);
