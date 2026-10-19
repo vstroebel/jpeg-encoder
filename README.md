@@ -38,7 +38,10 @@ encoder.encode(&data, 2, 2, ColorType::Rgb)?;
 ## Crate features
 - `std` (default): Enables functionality dependent on the std lib
 - `simd`: Enables SIMD optimizations (implies `std` and only AVX2 as for now)
-- `use_wide`: Enables portable FDCT SIMD using `fearless_simd` (the feature name is historical). Uses runtime CPU detection with `std`, and compile-time target features otherwise. Supports `no_std`. When combined with `simd`, the existing AVX2 encoder path still takes precedence on supported CPUs.
+- `use_wide`: Enables portable SIMD using `fearless_simd` (the feature name is historical). Uses runtime CPU detection with `std`, and compile-time target features otherwise.
+- `libm`: Enables the `libm` math backend for `fearless_simd` when `use_wide` is enabled. Required for `use_wide` without `std`; unnecessary for `std` builds. Does not enable SIMD on its own.
+
+To build with portable SIMD and `no_std`, use `--no-default-features --features use_wide,libm`.
 
 ## Minimum Supported Version of Rust (MSRV)
 

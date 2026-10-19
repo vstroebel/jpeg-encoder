@@ -51,6 +51,10 @@ jobs:
         run: cargo build --verbose --no-default-features
       - name: Run tests
         run: cargo test --verbose --no-default-features --tests
+      - name: Build use_wide with libm
+        run: cargo build --verbose --no-default-features --features use_wide,libm
+      - name: Run tests use_wide with libm
+        run: cargo test --verbose --no-default-features --features use_wide,libm --tests
 
   rustfmt:
 

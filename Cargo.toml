@@ -17,17 +17,18 @@ simd = ["std"]
 std = ["fearless_simd?/std"]
 # Historical feature name; the portable FDCT now uses fearless_simd.
 use_wide = ["dep:fearless_simd"]
+# Required with use_wide when std is disabled.
+libm = ["fearless_simd?/libm"]
 
 # DO NOT USE THIS IN PRODUCTION. Expose several internal functions for benchmark purposes.
 benchmark = []
 
 [dependencies]
 # pairwise_dot_product is not released yet: https://github.com/linebender/fearless_simd/pull/415
-fearless_simd = { git = "https://github.com/linebender/fearless_simd", rev = "7eb902414bb283a8bcdd066816cc19a65a8c8aae", optional = true, default-features = false, features = ["libm"] }
+fearless_simd = { git = "https://github.com/linebender/fearless_simd", rev = "7eb902414bb283a8bcdd066816cc19a65a8c8aae", optional = true, default-features = false }
 
 [dev-dependencies]
 jpeg-decoder = { version = "0.3", default-features = false }
-fearless_simd = { git = "https://github.com/linebender/fearless_simd", rev = "7eb902414bb283a8bcdd066816cc19a65a8c8aae", default-features = false, features = ["libm"] }
 
 [profile.dev]
 opt-level = 1
