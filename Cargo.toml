@@ -15,7 +15,7 @@ rust-version = "1.89"
 default = ["std"]
 simd = ["std"]
 std = ["fearless_simd?/std"]
-# Historical feature name; the portable FDCT now uses fearless_simd.
+# Historical feature name; portable SIMD now uses fearless_simd.
 use_wide = ["dep:fearless_simd"]
 # Required with use_wide when std is disabled.
 libm = ["fearless_simd?/libm"]

@@ -54,7 +54,10 @@ pub use writer::{JfifWrite, PixelDensity, PixelDensityUnit};
 pub use fdct::fdct;
 
 #[cfg(feature = "benchmark")]
-pub use image_buffer::RgbImage;
+pub use image_buffer::{BgrImage, BgraImage, RgbImage, RgbaImage};
+
+#[cfg(all(feature = "benchmark", feature = "use_wide"))]
+pub use simd::{BgrImageSimd, BgraImageSimd, RgbImageSimd, RgbaImageSimd};
 
 #[cfg(all(
     feature = "benchmark",
@@ -68,7 +71,7 @@ pub use avx2::fdct_avx2;
     feature = "simd",
     any(target_arch = "x86", target_arch = "x86_64")
 ))]
-pub use avx2::RgbImageAVX2;
+pub use avx2::{BgrImageAVX2, BgraImageAVX2, RgbImageAVX2, RgbaImageAVX2};
 
 #[cfg(test)]
 mod tests {

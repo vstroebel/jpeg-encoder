@@ -3,6 +3,11 @@ use crate::huffman::{CodingClass, HuffmanTable};
 use crate::image_buffer::*;
 use crate::marker::Marker;
 use crate::quantization::{QuantizationTable, QuantizationTableType};
+#[cfg(feature = "use_wide")]
+use crate::simd::{
+    BgrImageSimd as BgrImage, BgraImageSimd as BgraImage, RgbImageSimd as RgbImage,
+    RgbaImageSimd as RgbaImage,
+};
 use crate::writer::{JfifWrite, JfifWriter, ZIGZAG};
 use crate::{EncodingError, PixelDensity};
 
