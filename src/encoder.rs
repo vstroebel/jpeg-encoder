@@ -489,7 +489,11 @@ impl<W: JfifWrite> Encoder<W> {
             });
         }
 
-        #[cfg(all(feature = "simd", any(target_arch = "x86", target_arch = "x86_64")))]
+        #[cfg(all(
+            feature = "simd",
+            not(feature = "use_wide"),
+            any(target_arch = "x86", target_arch = "x86_64")
+        ))]
         {
             if std::is_x86_feature_detected!("avx2") {
                 use crate::avx2::*;
@@ -540,7 +544,11 @@ impl<W: JfifWrite> Encoder<W> {
 
     /// Encode an image
     pub fn encode_image<I: ImageBuffer>(self, image: I) -> Result<(), EncodingError> {
-        #[cfg(all(feature = "simd", any(target_arch = "x86", target_arch = "x86_64")))]
+        #[cfg(all(
+            feature = "simd",
+            not(feature = "use_wide"),
+            any(target_arch = "x86", target_arch = "x86_64")
+        ))]
         {
             if std::is_x86_feature_detected!("avx2") {
                 use crate::avx2::*;
