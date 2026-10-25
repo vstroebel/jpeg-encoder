@@ -23,7 +23,6 @@ portable_simd_no_std = ["fearless_simd", "fearless_simd/libm"]
 
 # Internal implementation feature; use portable_simd or portable_simd_no_std instead.
 fearless_simd = ["dep:fearless_simd"]
-
 # DO NOT USE THIS IN PRODUCTION. Expose several internal functions for benchmark purposes.
 benchmark = []
 
