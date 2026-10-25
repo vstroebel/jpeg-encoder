@@ -33,7 +33,7 @@ extern crate core;
 
 #[cfg(all(
     feature = "simd",
-    any(not(feature = "use_wide"), feature = "benchmark"),
+    any(not(feature = "fearless_simd"), feature = "benchmark"),
     any(target_arch = "x86", target_arch = "x86_64")
 ))]
 mod avx2;
@@ -44,7 +44,7 @@ mod huffman;
 mod image_buffer;
 mod marker;
 mod quantization;
-#[cfg(feature = "use_wide")]
+#[cfg(feature = "fearless_simd")]
 mod simd;
 mod writer;
 
@@ -63,7 +63,7 @@ pub use fdct::fdct;
 #[cfg(feature = "benchmark")]
 pub use image_buffer::{BgrImage, BgraImage, RgbImage, RgbaImage};
 
-#[cfg(all(feature = "benchmark", feature = "use_wide"))]
+#[cfg(all(feature = "benchmark", feature = "fearless_simd"))]
 pub use simd::{BgrImageSimd, BgraImageSimd, RgbImageSimd, RgbaImageSimd};
 
 #[cfg(all(

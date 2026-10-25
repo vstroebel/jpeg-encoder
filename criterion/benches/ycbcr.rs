@@ -105,7 +105,7 @@ fn criterion_benchmark(c: &mut Criterion) {
                         jpeg_encoder::$avx(&$data, width, height),
                     );
                 }
-                #[cfg(feature = "use_wide")]
+                #[cfg(feature = "fearless_simd")]
                 bench_image(
                     &mut group,
                     "portable",

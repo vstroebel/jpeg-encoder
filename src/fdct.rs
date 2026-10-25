@@ -71,13 +71,13 @@
  * scaled fixed-point arithmetic, with a minimal number of shifts.
  */
 
-#[cfg(any(not(feature = "use_wide"), test))]
+#[cfg(any(not(feature = "fearless_simd"), test))]
 use crate::encoder::AlignedBlock;
 
-#[cfg(any(not(feature = "use_wide"), test))]
+#[cfg(any(not(feature = "fearless_simd"), test))]
 const CONST_BITS: i32 = 13;
 
-#[cfg(any(not(feature = "use_wide"), test))]
+#[cfg(any(not(feature = "fearless_simd"), test))]
 #[allow(clippy::erasing_op)]
 #[allow(clippy::identity_op)]
 pub fn fdct_scalar(data: &mut AlignedBlock) {
@@ -241,10 +241,10 @@ pub fn fdct_scalar(data: &mut AlignedBlock) {
     }
 }
 
-#[cfg(not(feature = "use_wide"))]
+#[cfg(not(feature = "fearless_simd"))]
 pub use fdct_scalar as fdct;
 
-#[cfg(feature = "use_wide")]
+#[cfg(feature = "fearless_simd")]
 pub use crate::simd::fdct;
 
 #[cfg(test)]

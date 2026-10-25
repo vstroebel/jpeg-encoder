@@ -11,7 +11,10 @@ members = ["."]
 
 [features]
 simd = ["jpeg-encoder/simd"]
-use_wide = ["jpeg-encoder/use_wide"]
+portable_simd = ["fearless_simd", "jpeg-encoder/portable_simd"]
+portable_simd_no_std = ["fearless_simd", "jpeg-encoder/portable_simd_no_std"]
+# Internal implementation feature shared by the portable SIMD benchmarks.
+fearless_simd = ["jpeg-encoder/fearless_simd"]
 
 [dependencies]
 jpeg-encoder = {path = "..", features = ["benchmark"]}

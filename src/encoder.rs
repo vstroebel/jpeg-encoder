@@ -3,7 +3,7 @@ use crate::huffman::{CodingClass, HuffmanTable};
 use crate::image_buffer::*;
 use crate::marker::Marker;
 use crate::quantization::{QuantizationTable, QuantizationTableType};
-#[cfg(feature = "use_wide")]
+#[cfg(feature = "fearless_simd")]
 use crate::simd::{
     BgrImageSimd as BgrImage, BgraImageSimd as BgraImage, RgbImageSimd as RgbImage,
     RgbaImageSimd as RgbaImage,
@@ -491,7 +491,7 @@ impl<W: JfifWrite> Encoder<W> {
 
         #[cfg(all(
             feature = "simd",
-            not(feature = "use_wide"),
+            not(feature = "fearless_simd"),
             any(target_arch = "x86", target_arch = "x86_64")
         ))]
         {
@@ -546,7 +546,7 @@ impl<W: JfifWrite> Encoder<W> {
     pub fn encode_image<I: ImageBuffer>(self, image: I) -> Result<(), EncodingError> {
         #[cfg(all(
             feature = "simd",
-            not(feature = "use_wide"),
+            not(feature = "fearless_simd"),
             any(target_arch = "x86", target_arch = "x86_64")
         ))]
         {

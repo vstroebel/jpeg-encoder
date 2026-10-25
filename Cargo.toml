@@ -15,10 +15,11 @@ rust-version = "1.89"
 default = ["std"]
 simd = ["std"]
 std = ["fearless_simd?/std"]
-# Historical feature name; portable SIMD now uses fearless_simd.
-use_wide = ["dep:fearless_simd"]
-# Required with use_wide when std is disabled.
-libm = ["fearless_simd?/libm"]
+portable_simd = ["fearless_simd", "std"]
+portable_simd_no_std = ["fearless_simd", "fearless_simd/libm"]
+
+# Internal implementation feature; use portable_simd or portable_simd_no_std instead.
+fearless_simd = ["dep:fearless_simd"]
 
 # DO NOT USE THIS IN PRODUCTION. Expose several internal functions for benchmark purposes.
 benchmark = []
