@@ -28,7 +28,7 @@ benchmark = []
 
 [dependencies]
 # pairwise_dot_product is not released yet: https://github.com/linebender/fearless_simd/pull/415
-fearless_simd = { git = "https://github.com/linebender/fearless_simd", rev = "7eb902414bb283a8bcdd066816cc19a65a8c8aae", optional = true, default-features = false }
+fearless_simd = { version = "1.2.0", optional = true, default-features = false }
 
 [dev-dependencies]
 jpeg-decoder = { version = "0.3", default-features = false }
