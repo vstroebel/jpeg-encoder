@@ -16,6 +16,9 @@ default = ["std"]
 simd = ["std"]
 std = ["fearless_simd?/std"]
 portable_simd = ["fearless_simd", "std"]
+# without std there is no runtime CPU detection:
+# x86 uses SSE2, Aarch64 uses NEON, others have no SIMD
+# unless explicitly enabled with `-C target-cpu` or `-C target-feature`
 portable_simd_no_std = ["fearless_simd", "fearless_simd/libm"]
 
 # Internal implementation feature; use portable_simd or portable_simd_no_std instead.
