@@ -29,8 +29,8 @@ jobs:
       run: cargo build --verbose --features simd
     - name: Run tests
       run: cargo test --verbose --features simd
-    - name: Run tests use_wide
-      run: cargo test --verbose --features use_wide
+    - name: Run tests portable_simd
+      run: cargo test --verbose --no-default-features --features portable_simd
 
   no_std:
 
@@ -51,6 +51,10 @@ jobs:
         run: cargo build --verbose --no-default-features
       - name: Run tests
         run: cargo test --verbose --no-default-features --tests
+      - name: Build portable_simd_no_std
+        run: cargo build --verbose --no-default-features --features portable_simd_no_std
+      - name: Run tests portable_simd_no_std
+        run: cargo test --verbose --no-default-features --features portable_simd_no_std --tests
 
   rustfmt:
 

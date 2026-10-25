@@ -14,15 +14,21 @@ rust-version = "1.89"
 [features]
 default = ["std"]
 simd = ["std"]
-std = []
-use_wide = ["wide", "bytemuck"]
+std = ["fearless_simd?/std"]
+portable_simd = ["fearless_simd", "std"]
+# without std there is no runtime CPU detection:
+# x86 uses SSE2, Aarch64 uses NEON, others have no SIMD
+# unless explicitly enabled with `-C target-cpu` or `-C target-feature`
+portable_simd_no_std = ["fearless_simd", "fearless_simd/libm"]
 
+# Internal implementation feature; use portable_simd or portable_simd_no_std instead.
+fearless_simd = ["dep:fearless_simd"]
 # DO NOT USE THIS IN PRODUCTION. Expose several internal functions for benchmark purposes.
 benchmark = []
 
 [dependencies]
-wide = { version = "1.0", optional = true, default-features = false }
-bytemuck = { version = "1.24", optional = true, default-features = false }
+# pairwise_dot_product is not released yet: https://github.com/linebender/fearless_simd/pull/415
+fearless_simd = { version = "1.2.0", optional = true, default-features = false }
 
 [dev-dependencies]
 jpeg-decoder = { version = "0.3", default-features = false }

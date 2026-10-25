@@ -132,6 +132,7 @@ fn get_line(data: &[u8], y: u16, width: u16, num_colors: usize) -> &[u8] {
     &data[start..end]
 }
 
+#[cfg(any(not(feature = "fearless_simd"), feature = "benchmark"))]
 macro_rules! ycbcr_image {
     ($name:ident, $num_colors:expr, $o1:expr, $o2:expr, $o3:expr) => {
         pub struct $name<'a>(pub &'a [u8], pub u16, pub u16);
@@ -198,9 +199,13 @@ macro_rules! ycbcr_image {
     };
 }
 
+#[cfg(any(not(feature = "fearless_simd"), feature = "benchmark"))]
 ycbcr_image!(RgbImage, 3, 0, 1, 2);
+#[cfg(any(not(feature = "fearless_simd"), feature = "benchmark"))]
 ycbcr_image!(RgbaImage, 4, 0, 1, 2);
+#[cfg(any(not(feature = "fearless_simd"), feature = "benchmark"))]
 ycbcr_image!(BgrImage, 3, 2, 1, 0);
+#[cfg(any(not(feature = "fearless_simd"), feature = "benchmark"))]
 ycbcr_image!(BgraImage, 4, 2, 1, 0);
 
 pub(crate) struct YCbCrImage<'a>(pub &'a [u8], pub u16, pub u16);

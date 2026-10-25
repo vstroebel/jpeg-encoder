@@ -31,7 +31,11 @@ extern crate std;
 extern crate alloc;
 extern crate core;
 
-#[cfg(all(feature = "simd", any(target_arch = "x86", target_arch = "x86_64")))]
+#[cfg(all(
+    feature = "simd",
+    any(not(feature = "fearless_simd"), feature = "benchmark"),
+    any(target_arch = "x86", target_arch = "x86_64")
+))]
 mod avx2;
 mod encoder;
 mod error;
@@ -40,6 +44,8 @@ mod huffman;
 mod image_buffer;
 mod marker;
 mod quantization;
+#[cfg(feature = "fearless_simd")]
+mod simd;
 mod writer;
 
 pub use encoder::{ChromaSubsamplingMethod, ColorType, Encoder, JpegColorType, SamplingFactor};
@@ -49,10 +55,16 @@ pub use quantization::QuantizationTableType;
 pub use writer::{JfifWrite, PixelDensity, PixelDensityUnit};
 
 #[cfg(feature = "benchmark")]
+pub use encoder::AlignedBlock;
+
+#[cfg(feature = "benchmark")]
 pub use fdct::fdct;
 
 #[cfg(feature = "benchmark")]
-pub use image_buffer::RgbImage;
+pub use image_buffer::{BgrImage, BgraImage, RgbImage, RgbaImage};
+
+#[cfg(all(feature = "benchmark", feature = "fearless_simd"))]
+pub use simd::{BgrImageSimd, BgraImageSimd, RgbImageSimd, RgbaImageSimd};
 
 #[cfg(all(
     feature = "benchmark",
@@ -66,7 +78,7 @@ pub use avx2::fdct_avx2;
     feature = "simd",
     any(target_arch = "x86", target_arch = "x86_64")
 ))]
-pub use avx2::RgbImageAVX2;
+pub use avx2::{BgrImageAVX2, BgraImageAVX2, RgbImageAVX2, RgbaImageAVX2};
 
 #[cfg(test)]
 mod tests {
