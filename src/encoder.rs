@@ -1146,11 +1146,17 @@ impl<W: JfifWrite> Encoder<W> {
                 if component.dc_huffman_table == table {
                     had_dc = true;
 
+                    let restart_interval = self.restart_interval.unwrap_or(0) as usize;
                     let mut prev_dc = 0;
 
                     debug_assert!(!blocks[i].is_empty());
 
-                    for block in &blocks[i] {
+                    for (j, block) in blocks[i].iter().enumerate() {
+                        // Each restart marker resets the DC prediction, as when the blocks are written
+                        if restart_interval > 0 && j > 0 && j % restart_interval == 0 {
+                            prev_dc = 0;
+                        }
+
                         let value = block.data[0];
                         let diff = value - prev_dc;
                         let num_bits = get_num_bits(diff);
