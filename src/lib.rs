@@ -514,6 +514,48 @@ mod tests {
     }
 
     #[test]
+    fn test_restart_interval_optimized() {
+        let (data, width, height) = create_test_img_rgb();
+
+        let mut result = Vec::new();
+        let mut encoder = Encoder::new(&mut result, 100);
+        encoder.set_optimized_huffman_tables(true);
+
+        encoder.set_restart_interval(32);
+        const DRI_DATA: &[u8; 6] = b"\xFF\xDD\0\x04\0\x20";
+
+        encoder
+            .encode(&data, width, height, ColorType::Rgb)
+            .unwrap();
+
+        assert!(
+            result
+                .as_slice()
+                .windows(DRI_DATA.len())
+                .any(|w| w == DRI_DATA)
+        );
+
+        check_result(data, width, height, &mut result, PixelFormat::RGB24);
+    }
+
+    #[test]
+    fn test_restart_interval_optimized_progressive() {
+        let (data, width, height) = create_test_img_gray();
+
+        let mut result = Vec::new();
+        let mut encoder = Encoder::new(&mut result, 85);
+        encoder.set_progressive(true);
+        encoder.set_optimized_huffman_tables(true);
+        encoder.set_restart_interval(1);
+
+        encoder
+            .encode(&data, width, height, ColorType::Luma)
+            .unwrap();
+
+        check_result(data, width, height, &mut result, PixelFormat::L8);
+    }
+
+    #[test]
     fn test_app_segment() {
         let (data, width, height) = create_test_img_rgb();
 
