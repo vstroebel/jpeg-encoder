@@ -1,423 +1,278 @@
-/*
- * Ported from mozjpeg to rust
- *
- * This file was part of the Independent JPEG Group's software:
- * Copyright (C) 1991-1996, Thomas G. Lane.
- * libjpeg-turbo Modifications:
- * Copyright (C) 2015, 2020, D. R. Commander.
- *
- * Conditions of distribution and use:
- * In plain English:
- *
- * 1. We don't promise that this software works.  (But if you find any bugs,
- *    please let us know!)
- * 2. You can use this software for whatever you want.  You don't have to pay us.
- * 3. You may not pretend that you wrote this software.  If you use it in a
- *    program, you must acknowledge somewhere in your documentation that
- *    you've used the IJG code.
- *
- * In legalese:
- *
- * The authors make NO WARRANTY or representation, either express or implied,
- * with respect to this software, its quality, accuracy, merchantability, or
- * fitness for a particular purpose.  This software is provided "AS IS", and you,
- * its user, assume the entire risk as to its quality and accuracy.
- *
- * This software is copyright (C) 1991-2020, Thomas G. Lane, Guido Vollbeding.
- * All Rights Reserved except as specified below.
- *
- * Permission is hereby granted to use, copy, modify, and distribute this
- * software (or portions thereof) for any purpose, without fee, subject to these
- * conditions:
- * (1) If any part of the source code for this software is distributed, then this
- * README file must be included, with this copyright and no-warranty notice
- * unaltered; and any additions, deletions, or changes to the original files
- * must be clearly indicated in accompanying documentation.
- * (2) If only executable code is distributed, then the accompanying
- * documentation must state that "this software is based in part on the work of
- * the Independent JPEG Group".
- * (3) Permission for use of this software is granted only if the user accepts
- * full responsibility for any undesirable consequences; the authors accept
- * NO LIABILITY for damages of any kind.
- *
- * These conditions apply to any software derived from or based on the IJG code,
- * not just to the unmodified library.  If you use our work, you ought to
- * acknowledge us.
- *
- * Permission is NOT granted for the use of any IJG author's name or company name
- * in advertising or publicity relating to this software or products derived from
- * it.  This software may be referred to only as "the Independent JPEG Group's
- * software".
- *
- * We specifically permit and encourage the use of this software as the basis of
- * commercial products, provided that all warranty or liability claims are
- * assumed by the product vendor.
- *
- * This file contains a slower but more accurate integer implementation of the
- * forward DCT (Discrete Cosine Transform).
- *
- * A 2-D DCT can be done by 1-D DCT on each row followed by 1-D DCT
- * on each column.  Direct algorithms are also available, but they are
- * much more complex and seem not to be any faster when reduced to code.
- *
- * This implementation is based on an algorithm described in
- *   C. Loeffler, A. Ligtenberg and G. Moschytz, "Practical Fast 1-D DCT
- *   Algorithms with 11 Multiplications", Proc. Int'l. Conf. on Acoustics,
- *   Speech, and Signal Processing 1989 (ICASSP '89), pp. 988-991.
- * The primary algorithm described there uses 11 multiplies and 29 adds.
- * We use their alternate method with 12 multiplies and 32 adds.
- * The advantage of this method is that no data path contains more than one
- * multiplication; this allows a very simple and accurate implementation in
- * scaled fixed-point arithmetic, with a minimal number of shifts.
- */
+//! Forward discrete cosine transform of one 8×8 block.
+//!
+//! An implementation of the transform as the JPEG standard defines it
+//! (ITU-T T.81, A.3.3):
+//!
+//! ```text
+//! F(u,v) = 1/4 C(u) C(v) Σx Σy f(x,y) cos((2x+1)uπ/16) cos((2y+1)vπ/16)
+//! ```
+//!
+//! with `C(0) = 1/√2` and `C(k) = 1` otherwise. The input holds the
+//! level-shifted samples, `f(x,y)` at `data[y * 8 + x]`. The quantization
+//! tables carry a factor of 8 (see `quantization.rs`), so the output is
+//! `8·F(u,v)`, at `data[v * 8 + u]`.
+//!
+//! The transform is separable: a vertical 8-point pass over the columns, then
+//! a horizontal one over the rows. With the factor of 8 shared between them,
+//! each pass computes
+//!
+//! ```text
+//! X(k) = Σn x(n) · √2 C(k) cos((2n+1)kπ/16)
+//! ```
+//!
+//! as an even half over the sums `s(n) = x(n) + x(7-n)` (outputs 0, 2, 4 and 6)
+//! and an odd half over the differences `d(n) = x(n) - x(7-n)` (outputs 1, 3,
+//! 5 and 7). Outputs 0 and 4 need no multiplication; the others multiply by
+//! `√2 cos(mπ/16)`, held as integers scaled by `2^CONST_BITS`. The vertical
+//! pass keeps `PASS1_BITS` extra fraction bits, which the horizontal pass
+//! drops with rounding. Every intermediate fits in an `i32`.
+//!
+//! The scalar, `wide` and AVX2 versions round at the same points, so they
+//! produce identical coefficients.
 
 use crate::encoder::AlignedBlock;
+use core::ops::{Add, Sub};
 
-const CONST_BITS: i32 = 13;
+pub(crate) const CONST_BITS: u32 = 13;
+pub(crate) const PASS1_BITS: u32 = 3;
+
+// `round(2^CONST_BITS · √2 · cos(mπ/16))` for m = 1, 2, 3, 5, 6 and 7
+// (`the_constants_follow_from_the_definition` recomputes them).
+pub(crate) const C1: i32 = 11363;
+pub(crate) const C2: i32 = 10703;
+pub(crate) const C3: i32 = 9633;
+pub(crate) const C5: i32 = 6436;
+pub(crate) const C6: i32 = 4433;
+pub(crate) const C7: i32 = 2260;
+
+/// Integer lanes the passes run on: one value, or one row of eight.
+pub(crate) trait Lane: Copy + Add<Output = Self> + Sub<Output = Self> {
+    fn times(self, constant: i32) -> Self;
+    fn shift_left(self, bits: u32) -> Self;
+    /// Divide by `2^bits`, rounding halves up.
+    fn descale(self, bits: u32) -> Self;
+}
+
+impl Lane for i32 {
+    #[inline(always)]
+    fn times(self, constant: i32) -> Self {
+        self * constant
+    }
+
+    #[inline(always)]
+    fn shift_left(self, bits: u32) -> Self {
+        self << bits
+    }
+
+    #[inline(always)]
+    fn descale(self, bits: u32) -> Self {
+        (self + (1 << (bits - 1))) >> bits
+    }
+}
+
+/// One 8-point pass before scaling: outputs 0 and 4 as plain sums, the
+/// other six as products scaled by `2^CONST_BITS`.
+#[inline(always)]
+pub(crate) fn butterfly<L: Lane>(x: &[L; 8]) -> [L; 8] {
+    let s0 = x[0] + x[7];
+    let s1 = x[1] + x[6];
+    let s2 = x[2] + x[5];
+    let s3 = x[3] + x[4];
+    let d0 = x[0] - x[7];
+    let d1 = x[1] - x[6];
+    let d2 = x[2] - x[5];
+    let d3 = x[3] - x[4];
+
+    let e0 = s0 + s3;
+    let e1 = s1 + s2;
+    let f0 = s0 - s3;
+    let f1 = s1 - s2;
+
+    [
+        e0 + e1,
+        d0.times(C1) + d1.times(C3) + d2.times(C5) + d3.times(C7),
+        f0.times(C2) + f1.times(C6),
+        d0.times(C3) - d1.times(C7) - d2.times(C1) - d3.times(C5),
+        e0 - e1,
+        d0.times(C5) - d1.times(C1) + d2.times(C7) + d3.times(C3),
+        f0.times(C6) - f1.times(C2),
+        d0.times(C7) - d1.times(C5) + d2.times(C3) - d3.times(C1),
+    ]
+}
+
+/// The vertical pass: keep `PASS1_BITS` fraction bits.
+#[inline(always)]
+pub(crate) fn vertical<L: Lane>(x: &[L; 8]) -> [L; 8] {
+    let raw = butterfly(x);
+    core::array::from_fn(|k| {
+        if k % 4 == 0 {
+            raw[k].shift_left(PASS1_BITS)
+        } else {
+            raw[k].descale(CONST_BITS - PASS1_BITS)
+        }
+    })
+}
+
+/// The horizontal pass: drop every fraction bit.
+#[inline(always)]
+pub(crate) fn horizontal<L: Lane>(x: &[L; 8]) -> [L; 8] {
+    let raw = butterfly(x);
+    core::array::from_fn(|k| {
+        if k % 4 == 0 {
+            raw[k].descale(PASS1_BITS)
+        } else {
+            raw[k].descale(CONST_BITS + PASS1_BITS)
+        }
+    })
+}
 
 #[cfg(not(feature = "use_wide"))]
 pub use fdct_scalar as fdct;
 
 #[cfg(any(test, not(feature = "use_wide")))]
-#[allow(clippy::erasing_op)]
-#[allow(clippy::identity_op)]
 pub fn fdct_scalar(data: &mut AlignedBlock) {
-    const PASS1_BITS: i32 = 2;
-
-    const FIX_0_298631336: i32 = 2446;
-    const FIX_0_390180644: i32 = 3196;
-    const FIX_0_541196100: i32 = 4433;
-    const FIX_0_765366865: i32 = 6270;
-    const FIX_0_899976223: i32 = 7373;
-    const FIX_1_175875602: i32 = 9633;
-    const FIX_1_501321110: i32 = 12299;
-    const FIX_1_847759065: i32 = 15137;
-    const FIX_1_961570560: i32 = 16069;
-    const FIX_2_053119869: i32 = 16819;
-    const FIX_2_562915447: i32 = 20995;
-    const FIX_3_072711026: i32 = 25172;
-
-    const DCT_SIZE: usize = 8;
-
-    #[inline(always)]
-    fn descale(x: i32, n: i32) -> i32 {
-        // right shift with rounding
-        (x + (1 << (n - 1))) >> n
+    let mut columns = [[0i32; 8]; 8];
+    for (x, column) in columns.iter_mut().enumerate() {
+        let samples: [i32; 8] = core::array::from_fn(|y| i32::from(data.data[y * 8 + x]));
+        *column = vertical(&samples);
     }
-
-    #[inline(always)]
-    fn into_el(v: i32) -> i16 {
-        v as i16
-    }
-
-    let data = &mut data.data;
-
-    /* Pass 1: process rows. */
-    /* Note results are scaled up by sqrt(8) compared to a true DCT; */
-    /* furthermore, we scale the results by 2**PASS1_BITS. */
-
-    let mut data2 = [0i32; 64];
-
-    for y in 0..8 {
-        let offset = y * 8;
-
-        let tmp0 = i32::from(data[offset + 0]) + i32::from(data[offset + 7]);
-        let tmp7 = i32::from(data[offset + 0]) - i32::from(data[offset + 7]);
-        let tmp1 = i32::from(data[offset + 1]) + i32::from(data[offset + 6]);
-        let tmp6 = i32::from(data[offset + 1]) - i32::from(data[offset + 6]);
-        let tmp2 = i32::from(data[offset + 2]) + i32::from(data[offset + 5]);
-        let tmp5 = i32::from(data[offset + 2]) - i32::from(data[offset + 5]);
-        let tmp3 = i32::from(data[offset + 3]) + i32::from(data[offset + 4]);
-        let tmp4 = i32::from(data[offset + 3]) - i32::from(data[offset + 4]);
-
-        /* Even part per LL&M figure 1 --- note that published figure is faulty;
-         * rotator "sqrt(2)*c1" should be "sqrt(2)*c6".
-         */
-
-        let tmp10 = tmp0 + tmp3;
-        let tmp13 = tmp0 - tmp3;
-        let tmp11 = tmp1 + tmp2;
-        let tmp12 = tmp1 - tmp2;
-
-        data2[offset + 0] = (tmp10 + tmp11) << PASS1_BITS;
-        data2[offset + 4] = (tmp10 - tmp11) << PASS1_BITS;
-
-        let z1 = (tmp12 + tmp13) * FIX_0_541196100;
-        data2[offset + 2] = descale(z1 + (tmp13 * FIX_0_765366865), CONST_BITS - PASS1_BITS);
-        data2[offset + 6] = descale(z1 + (tmp12 * -FIX_1_847759065), CONST_BITS - PASS1_BITS);
-
-        /* Odd part per figure 8 --- note paper omits factor of sqrt(2).
-         * cK represents cos(K*pi/16).
-         * i0..i3 in the paper are tmp4..tmp7 here.
-         */
-
-        let z1 = tmp4 + tmp7;
-        let z2 = tmp5 + tmp6;
-        let z3 = tmp4 + tmp6;
-        let z4 = tmp5 + tmp7;
-        let z5 = (z3 + z4) * FIX_1_175875602; /* sqrt(2) * c3 */
-
-        let tmp4 = tmp4 * FIX_0_298631336; /* sqrt(2) * (-c1+c3+c5-c7) */
-        let tmp5 = tmp5 * FIX_2_053119869; /* sqrt(2) * ( c1+c3-c5+c7) */
-        let tmp6 = tmp6 * FIX_3_072711026; /* sqrt(2) * ( c1+c3+c5-c7) */
-        let tmp7 = tmp7 * FIX_1_501321110; /* sqrt(2) * ( c1+c3-c5-c7) */
-        let z1 = z1 * -FIX_0_899976223; /* sqrt(2) * ( c7-c3) */
-        let z2 = z2 * -FIX_2_562915447; /* sqrt(2) * (-c1-c3) */
-        let z3 = z3 * -FIX_1_961570560; /* sqrt(2) * (-c3-c5) */
-        let z4 = z4 * -FIX_0_390180644; /* sqrt(2) * ( c5-c3) */
-
-        let z3 = z3 + z5;
-        let z4 = z4 + z5;
-
-        data2[offset + 7] = descale(tmp4 + z1 + z3, CONST_BITS - PASS1_BITS);
-        data2[offset + 5] = descale(tmp5 + z2 + z4, CONST_BITS - PASS1_BITS);
-        data2[offset + 3] = descale(tmp6 + z2 + z3, CONST_BITS - PASS1_BITS);
-        data2[offset + 1] = descale(tmp7 + z1 + z4, CONST_BITS - PASS1_BITS);
-    }
-
-    /* Pass 2: process columns.
-     * We remove the PASS1_BITS scaling, but leave the results scaled up
-     * by an overall factor of 8.
-     */
-
-    for x in 0..8 {
-        let tmp0 = data2[DCT_SIZE * 0 + x] + data2[DCT_SIZE * 7 + x];
-        let tmp7 = data2[DCT_SIZE * 0 + x] - data2[DCT_SIZE * 7 + x];
-        let tmp1 = data2[DCT_SIZE * 1 + x] + data2[DCT_SIZE * 6 + x];
-        let tmp6 = data2[DCT_SIZE * 1 + x] - data2[DCT_SIZE * 6 + x];
-        let tmp2 = data2[DCT_SIZE * 2 + x] + data2[DCT_SIZE * 5 + x];
-        let tmp5 = data2[DCT_SIZE * 2 + x] - data2[DCT_SIZE * 5 + x];
-        let tmp3 = data2[DCT_SIZE * 3 + x] + data2[DCT_SIZE * 4 + x];
-        let tmp4 = data2[DCT_SIZE * 3 + x] - data2[DCT_SIZE * 4 + x];
-
-        /* Even part per LL&M figure 1 --- note that published figure is faulty;
-         * rotator "sqrt(2)*c1" should be "sqrt(2)*c6".
-         */
-
-        let tmp10 = tmp0 + tmp3;
-        let tmp13 = tmp0 - tmp3;
-        let tmp11 = tmp1 + tmp2;
-        let tmp12 = tmp1 - tmp2;
-
-        data[DCT_SIZE * 0 + x] = into_el(descale(tmp10 + tmp11, PASS1_BITS));
-        data[DCT_SIZE * 4 + x] = into_el(descale(tmp10 - tmp11, PASS1_BITS));
-
-        let z1 = (tmp12 + tmp13) * FIX_0_541196100;
-        data[DCT_SIZE * 2 + x] = into_el(descale(
-            z1 + tmp13 * FIX_0_765366865,
-            CONST_BITS + PASS1_BITS,
-        ));
-        data[DCT_SIZE * 6 + x] = into_el(descale(
-            z1 + tmp12 * -FIX_1_847759065,
-            CONST_BITS + PASS1_BITS,
-        ));
-
-        /* Odd part per figure 8 --- note paper omits factor of sqrt(2).
-         * cK represents cos(K*pi/16).
-         * i0..i3 in the paper are tmp4..tmp7 here.
-         */
-
-        let z1 = tmp4 + tmp7;
-        let z2 = tmp5 + tmp6;
-        let z3 = tmp4 + tmp6;
-        let z4 = tmp5 + tmp7;
-        let z5 = (z3 + z4) * FIX_1_175875602; /* sqrt(2) * c3 */
-
-        let tmp4 = tmp4 * FIX_0_298631336; /* sqrt(2) * (-c1+c3+c5-c7) */
-        let tmp5 = tmp5 * FIX_2_053119869; /* sqrt(2) * ( c1+c3-c5+c7) */
-        let tmp6 = tmp6 * FIX_3_072711026; /* sqrt(2) * ( c1+c3+c5-c7) */
-        let tmp7 = tmp7 * FIX_1_501321110; /* sqrt(2) * ( c1+c3-c5-c7) */
-        let z1 = z1 * -FIX_0_899976223; /* sqrt(2) * ( c7-c3) */
-        let z2 = z2 * -FIX_2_562915447; /* sqrt(2) * (-c1-c3) */
-        let z3 = z3 * -FIX_1_961570560; /* sqrt(2) * (-c3-c5) */
-        let z4 = z4 * -FIX_0_390180644; /* sqrt(2) * ( c5-c3) */
-
-        let z3 = z3 + z5;
-        let z4 = z4 + z5;
-
-        data[DCT_SIZE * 7 + x] = into_el(descale(tmp4 + z1 + z3, CONST_BITS + PASS1_BITS));
-        data[DCT_SIZE * 5 + x] = into_el(descale(tmp5 + z2 + z4, CONST_BITS + PASS1_BITS));
-        data[DCT_SIZE * 3 + x] = into_el(descale(tmp6 + z2 + z3, CONST_BITS + PASS1_BITS));
-        data[DCT_SIZE * 1 + x] = into_el(descale(tmp7 + z1 + z4, CONST_BITS + PASS1_BITS));
+    for (v, out) in data.data.chunks_exact_mut(8).enumerate() {
+        let row: [i32; 8] = core::array::from_fn(|x| columns[x][v]);
+        for (coefficient, value) in out.iter_mut().zip(horizontal(&row)) {
+            *coefficient = value as i16;
+        }
     }
 }
 
-/// This version uses the wide crate for SIMD operations, resulting in a 80% speedup on older SSE2-capable CPUs.
-///
-/// It also means that these operations can be done on ARM and WASM targets that support SIMD.
-///
-/// The pure AVX2 version is still another 10-20% faster if compiling for AVX2.
+#[cfg(feature = "use_wide")]
+impl Lane for wide::i32x8 {
+    #[inline(always)]
+    fn times(self, constant: i32) -> Self {
+        self * wide::i32x8::splat(constant)
+    }
+
+    #[inline(always)]
+    fn shift_left(self, bits: u32) -> Self {
+        self << bits
+    }
+
+    #[inline(always)]
+    fn descale(self, bits: u32) -> Self {
+        (self + wide::i32x8::splat(1 << (bits - 1))) >> bits
+    }
+}
+
+#[cfg(feature = "use_wide")]
+fn transpose(rows: [wide::i32x8; 8]) -> [wide::i32x8; 8] {
+    let rows = rows.map(wide::i32x8::to_array);
+    core::array::from_fn(|i| wide::i32x8::new(core::array::from_fn(|j| rows[j][i])))
+}
+
 #[cfg(feature = "use_wide")]
 pub fn fdct(data: &mut AlignedBlock) {
-    use bytemuck::cast;
-    use wide::{i16x8, i32x8};
+    use wide::i32x8;
 
-    const FIX_0_298631336: i16 = 2446;
-    const FIX_0_390180644: i16 = 3196;
-    const FIX_0_541196100: i16 = 4433;
-    const FIX_0_765366865: i16 = 6270;
-    const FIX_0_899976223: i16 = 7373;
-    const FIX_1_175875602: i16 = 9633;
-    const FIX_1_501321110: i16 = 12299;
-    const FIX_1_847759065: i16 = 15137;
-    const FIX_1_961570560: i16 = 16069;
-    const FIX_2_053119869: i16 = 16819;
-    const FIX_2_562915447: i16 = 20995;
-    const FIX_3_072711026: i16 = 25172;
-
-    #[inline(always)]
-    fn descale_w(x: i32x8, n: i32) -> i16x8 {
-        // right shift with rounding
-        i16x8::from_i32x8_saturate((x + (1 << (n - 1))) >> n)
-    }
-
-    #[inline(always)]
-    fn kernel_32<const SHIFT_BITS: i32>(data_w: [i16x8; 8]) -> [i16x8; 8] {
-        let tmp0 = data_w[0] + data_w[7];
-        let tmp7 = data_w[0] - data_w[7];
-        let tmp1 = data_w[1] + data_w[6];
-        let tmp6 = data_w[1] - data_w[6];
-        let tmp2 = data_w[2] + data_w[5];
-        let tmp5 = data_w[2] - data_w[5];
-        let tmp3 = data_w[3] + data_w[4];
-        let tmp4 = data_w[3] - data_w[4];
-
-        /* Even part per LL&M figure 1 --- note that published figure is faulty;
-         * rotator "sqrt(2)*c1" should be "sqrt(2)*c6".
-         */
-
-        let tmp10 = tmp0 + tmp3;
-        let tmp13 = tmp0 - tmp3;
-        let tmp11 = tmp1 + tmp2;
-        let tmp12 = tmp1 - tmp2;
-
-        let data_0;
-        let data_4;
-
-        if SHIFT_BITS < 0 {
-            data_0 = tmp10 + tmp11 << -SHIFT_BITS;
-            data_4 = tmp10 - tmp11 << -SHIFT_BITS;
-        } else {
-            data_0 = descale_w(i32x8::from(tmp10 + tmp11), SHIFT_BITS);
-            data_4 = descale_w(i32x8::from(tmp10 - tmp11), SHIFT_BITS);
+    // Each vector is a row: the vertical pass runs on all eight columns at once.
+    let rows: [i32x8; 8] = core::array::from_fn(|y| {
+        i32x8::new(core::array::from_fn(|x| i32::from(data.data[y * 8 + x])))
+    });
+    let vertical = vertical(&rows);
+    let horizontal = horizontal(&transpose(vertical));
+    for (v, row) in transpose(horizontal).into_iter().enumerate() {
+        for (u, value) in row.to_array().into_iter().enumerate() {
+            data.data[v * 8 + u] = value as i16;
         }
-
-        let z1 = (tmp12 + tmp13).mul_widen(i16x8::from(FIX_0_541196100));
-        let data_2 = descale_w(
-            z1 + (tmp13.mul_widen(i16x8::from(FIX_0_765366865))),
-            CONST_BITS + SHIFT_BITS,
-        );
-        let data_6 = descale_w(
-            z1 + (tmp12.mul_widen(i16x8::from(-FIX_1_847759065))),
-            CONST_BITS + SHIFT_BITS,
-        );
-
-        /* Odd part per figure 8 --- note paper omits factor of sqrt(2).
-         * cK represents cos(K*pi/16).
-         * i0..i3 in the paper are tmp4..tmp7 here.
-         */
-
-        let z1 = tmp4 + tmp7;
-        let z2 = tmp5 + tmp6;
-        let z3 = tmp4 + tmp6;
-        let z4 = tmp5 + tmp7;
-        let z5 = (z3 + z4).mul_widen(i16x8::from(FIX_1_175875602));
-        /* sqrt(2) * c3 */
-
-        let tmp4 = tmp4.mul_widen(i16x8::from(FIX_0_298631336));
-        /* sqrt(2) * (-c1+c3+c5-c7) */
-        let tmp5 = tmp5.mul_widen(i16x8::from(FIX_2_053119869));
-        /* sqrt(2) * ( c1+c3-c5+c7) */
-        let tmp6 = tmp6.mul_widen(i16x8::from(FIX_3_072711026));
-        /* sqrt(2) * ( c1+c3+c5-c7) */
-        let tmp7 = tmp7.mul_widen(i16x8::from(FIX_1_501321110));
-        /* sqrt(2) * ( c1+c3-c5-c7) */
-        let z1 = z1.mul_widen(i16x8::from(-FIX_0_899976223));
-        /* sqrt(2) * ( c7-c3) */
-        let z2 = z2.mul_widen(i16x8::from(-FIX_2_562915447));
-        /* sqrt(2) * (-c1-c3) */
-        let z3 = z3.mul_widen(i16x8::from(-FIX_1_961570560));
-        /* sqrt(2) * (-c3-c5) */
-        let z4 = z4.mul_widen(i16x8::from(-FIX_0_390180644));
-        /* sqrt(2) * ( c5-c3) */
-
-        let z3 = z3 + z5;
-        let z4 = z4 + z5;
-
-        let data_7 = descale_w(tmp4 + z1 + z3, CONST_BITS + SHIFT_BITS);
-        let data_5 = descale_w(tmp5 + z2 + z4, CONST_BITS + SHIFT_BITS);
-        let data_3 = descale_w(tmp6 + z2 + z3, CONST_BITS + SHIFT_BITS);
-        let data_1 = descale_w(tmp7 + z1 + z4, CONST_BITS + SHIFT_BITS);
-
-        [
-            data_0, data_1, data_2, data_3, data_4, data_5, data_6, data_7,
-        ]
     }
-
-    let data = &mut data.data;
-
-    /* Pass 1: process rows. */
-    /* Note results are scaled up by sqrt(8) compared to a true DCT; */
-    /* furthermore, we scale the results by 2**PASS1_BITS. */
-
-    let data_w = i16x8::transpose(cast(*data));
-
-    let pass1 = kernel_32::<-2>(data_w);
-
-    let data2 = i16x8::transpose(pass1);
-
-    /* Pass 2: process columns.
-     * We remove the PASS1_BITS scaling, but leave the results scaled up
-     * by an overall factor of 8.
-     */
-
-    let pass2 = kernel_32::<2>(data2);
-
-    *data = cast(pass2);
 }
 
 #[cfg(test)]
-mod tests {
-
-    // Inputs and outputs are taken from libjpegs jpeg_fdct_islow for a typical image
+pub(crate) mod tests {
+    extern crate std;
 
     use super::*;
+    use core::f64::consts::{FRAC_1_SQRT_2, PI, SQRT_2};
+    use std::vec::Vec;
 
-    const INPUT1: [i16; 64] = [
-        -70, -71, -70, -68, -67, -67, -67, -67, -72, -73, -72, -70, -69, -69, -68, -69, -75, -76,
-        -74, -73, -73, -72, -71, -70, -77, -78, -77, -75, -76, -75, -73, -71, -78, -77, -77, -76,
-        -79, -77, -76, -75, -78, -78, -77, -77, -77, -77, -78, -77, -79, -79, -78, -78, -78, -78,
-        -79, -78, -80, -79, -78, -78, -81, -80, -78, -76,
-    ];
+    /// `8·F(u,v)` straight from the definition, in `f64`.
+    pub(crate) fn reference(samples: &[i16; 64]) -> [f64; 64] {
+        let basis = |k: usize, n: usize| ((2 * n + 1) as f64 * k as f64 * PI / 16.0).cos();
+        let weight = |k: usize| if k == 0 { FRAC_1_SQRT_2 } else { 1.0 };
+        core::array::from_fn(|i| {
+            let (v, u) = (i / 8, i % 8);
+            let mut sum = 0.0;
+            for y in 0..8 {
+                for x in 0..8 {
+                    sum += f64::from(samples[y * 8 + x]) * basis(u, x) * basis(v, y);
+                }
+            }
+            8.0 * 0.25 * weight(u) * weight(v) * sum
+        })
+    }
 
-    const OUTPUT1: [i16; 64] = [
-        -4786, -66, 2, -18, 12, 12, 5, -7, 223, -37, -8, 21, 8, 5, -4, 6, 60, 6, -10, 5, 0, -2, -1,
-        5, 21, 21, -15, 12, -2, -7, 1, 0, -2, -5, 16, -15, 0, 5, -4, -8, 0, -7, -4, 6, 7, -4, 5, 4,
-        3, 0, 1, -5, 0, -1, 4, 1, -5, 7, 0, -3, -6, 1, 1, -4,
-    ];
-
-    const INPUT2: [i16; 64] = [
-        21, 28, 11, 24, -45, -37, -55, -103, 38, -8, 31, 17, -19, 49, 15, -76, 22, -48, -36, -31,
-        -23, 35, -23, -72, 13, -30, -45, -42, -44, -15, -20, -44, 13, -30, -45, -42, -44, -15, -20,
-        -44, 13, -30, -45, -42, -44, -15, -20, -44, 13, -30, -45, -42, -44, -15, -20, -44, 13, -30,
-        -45, -42, -44, -15, -20, -44,
-    ];
-
-    const OUTPUT2: [i16; 64] = [
-        -1420, 717, 187, 910, -244, 579, 222, -191, 461, 487, -497, -29, -220, 179, 63, -95, 213,
-        414, -235, -187, -108, 74, -73, -70, -63, 311, 13, -290, 17, -38, -180, -47, -254, 201,
-        116, -247, 102, -109, -185, -36, -310, 107, 73, -91, 126, -121, -99, -37, -253, 43, -15,
-        53, 101, -91, -3, -37, -136, 12, -44, 81, 53, -45, 31, -24,
-    ];
+    /// Blocks at the extremes of the sample range, then pseudo-random ones.
+    pub(crate) fn blocks() -> Vec<[i16; 64]> {
+        let mut blocks = Vec::new();
+        for (low, high) in [(-128, -128), (127, 127), (-128, 127), (127, -128)] {
+            blocks.push(core::array::from_fn(|i| {
+                if (i / 8 + i % 8) % 2 == 0 { low } else { high }
+            }));
+            blocks.push(core::array::from_fn(
+                |i| if i % 2 == 0 { low } else { high },
+            ));
+            blocks.push(core::array::from_fn(|i| {
+                if (i / 8) % 2 == 0 { low } else { high }
+            }));
+        }
+        blocks.push(core::array::from_fn(|i| (i as i16) * 4 - 128));
+        let mut state = 0x2545_f491_4f6c_dd1d_u64;
+        for round in 0..20_000 {
+            blocks.push(core::array::from_fn(|_| {
+                state ^= state << 13;
+                state ^= state >> 7;
+                state ^= state << 17;
+                let bits = (state >> 32) as i16;
+                if round % 4 == 0 {
+                    if bits & 1 == 0 { -128 } else { 127 }
+                } else {
+                    (bits & 0xff) - 128
+                }
+            }));
+        }
+        blocks
+    }
 
     #[test]
-    pub fn test_fdct_libjpeg() {
-        let mut i1 = AlignedBlock::new(INPUT1.clone());
-        fdct(&mut i1);
-        assert_eq!(i1.data, OUTPUT1);
+    fn the_constants_follow_from_the_definition() {
+        for (m, constant) in [(1, C1), (2, C2), (3, C3), (5, C5), (6, C6), (7, C7)] {
+            let exact = f64::from(1u32 << CONST_BITS) * SQRT_2 * (f64::from(m) * PI / 16.0).cos();
+            assert_eq!(constant, exact.round() as i32, "m = {m}");
+        }
+    }
 
-        let mut i2 = AlignedBlock::new(INPUT2.clone());
-        fdct(&mut i2);
-        assert_eq!(i2.data, OUTPUT2);
+    #[test]
+    fn the_transform_is_the_definition_within_one() {
+        for samples in blocks() {
+            let expected = reference(&samples);
+            let mut block = AlignedBlock::new(samples);
+            fdct_scalar(&mut block);
+            for (i, (&got, want)) in block.data.iter().zip(expected).enumerate() {
+                assert!(
+                    (f64::from(got) - want).abs() <= 1.0,
+                    "coefficient {i} of {samples:?}: {got} against {want}"
+                );
+            }
+        }
+    }
+
+    #[cfg(feature = "use_wide")]
+    #[test]
+    fn the_wide_transform_matches_the_scalar_one() {
+        for samples in blocks() {
+            let mut scalar = AlignedBlock::new(samples);
+            let mut wide = AlignedBlock::new(samples);
+            fdct_scalar(&mut scalar);
+            fdct(&mut wide);
+            assert_eq!(scalar.data, wide.data, "{samples:?}");
+        }
     }
 }
