@@ -236,6 +236,7 @@ pub struct Encoder<W: JfifWrite> {
     restart_interval: Option<u16>,
 
     optimize_huffman_table: bool,
+    exact_quantization: bool,
 
     app_segments: Vec<(u8, Vec<u8>)>,
 }
@@ -281,6 +282,7 @@ impl<W: JfifWrite> Encoder<W> {
             progressive_scans: None,
             restart_interval: None,
             optimize_huffman_table: false,
+            exact_quantization: false,
             app_segments: Vec::new(),
         }
     }
@@ -392,6 +394,18 @@ impl<W: JfifWrite> Encoder<W> {
     /// Returns if optimized huffman table should be generated
     pub fn optimized_huffman_tables(&self) -> bool {
         self.optimize_huffman_table
+    }
+
+    /// Set if exact 16-bit reciprocal quantization matching libjpeg should be used.
+    ///
+    /// By default, a fixed 15-bit reciprocal shift is used.
+    pub fn set_exact_quantization(&mut self, exact_quantization: bool) {
+        self.exact_quantization = exact_quantization;
+    }
+
+    /// Returns if exact 16-bit reciprocal quantization is enabled.
+    pub fn exact_quantization(&self) -> bool {
+        self.exact_quantization
     }
 
     /// Appends a custom app segment to the JFIF file
@@ -557,8 +571,18 @@ impl<W: JfifWrite> Encoder<W> {
         }
 
         let q_tables = [
-            QuantizationTable::new_with_quality(&self.quantization_tables[0], self.quality, true),
-            QuantizationTable::new_with_quality(&self.quantization_tables[1], self.quality, false),
+            QuantizationTable::new_with_quality(
+                &self.quantization_tables[0],
+                self.quality,
+                true,
+                self.exact_quantization,
+            ),
+            QuantizationTable::new_with_quality(
+                &self.quantization_tables[1],
+                self.quality,
+                false,
+                self.exact_quantization,
+            ),
         ];
 
         let jpeg_color_type = image.get_jpeg_color_type();
@@ -798,6 +822,11 @@ impl<W: JfifWrite> Encoder<W> {
                         for h_offset in 0..component.horizontal_sampling_factor as usize {
                             let bx = block_x * 8 * max_h_sampling + (h_offset * 8);
                             let by = v_offset * 8;
+                            let imcu_rows = (usize::from(height)
+                                .saturating_sub(block_y * 8 * max_v_sampling))
+                            .min(8 * max_v_sampling);
+                            let max_start_y =
+                                imcu_rows.div_ceil(v_stride).saturating_sub(1) * v_stride;
                             let mut block = if average {
                                 get_block_averaged(
                                     &row[i],
@@ -806,6 +835,7 @@ impl<W: JfifWrite> Encoder<W> {
                                     h_stride,
                                     v_stride,
                                     buffer_width,
+                                    max_start_y,
                                 )
                             } else {
                                 get_block(&row[i], bx, by, h_stride, v_stride, buffer_width)
@@ -1072,13 +1102,22 @@ impl<W: JfifWrite> Encoder<W> {
 
             let average = self.chroma_subsampling_method == ChromaSubsamplingMethod::Average
                 && (h_scale > 1 || v_scale > 1);
+            let max_start_y = usize::from(height).div_ceil(v_scale).saturating_sub(1) * v_scale;
 
             for block_y in 0..rows {
                 for block_x in 0..cols {
                     let bx = block_x * 8 * h_scale;
                     let by = block_y * 8 * v_scale;
                     let mut block = if average {
-                        get_block_averaged(&row[i], bx, by, h_scale, v_scale, buffer_width)
+                        get_block_averaged(
+                            &row[i],
+                            bx,
+                            by,
+                            h_scale,
+                            v_scale,
+                            buffer_width,
+                            max_start_y,
+                        )
                     } else {
                         get_block(&row[i], bx, by, h_scale, v_scale, buffer_width)
                     };
@@ -1303,6 +1342,7 @@ fn get_block_averaged(
     col_stride: usize,
     row_stride: usize,
     width: usize,
+    max_start_y: usize,
 ) -> AlignedBlock {
     let mut block = [0i16; 64];
     let n = col_stride * row_stride;
@@ -1313,7 +1353,8 @@ fn get_block_averaged(
     for y in 0..8 {
         for x in 0..8 {
             let ix = start_x + (x * col_stride);
-            let iy = start_y + (y * row_stride);
+            // Repeat the last downsampled row at the bottom edge (matching libjpeg jcprepct.c).
+            let iy = (start_y + (y * row_stride)).min(max_start_y);
 
             let mut sum = 0usize;
             for dy in 0..row_stride {
@@ -1382,7 +1423,7 @@ mod tests {
         }
 
         let nearest = get_block(&data, 0, 0, 2, 2, width);
-        let averaged = get_block_averaged(&data, 0, 0, 2, 2, width);
+        let averaged = get_block_averaged(&data, 0, 0, 2, 2, width, 14);
 
         assert!(nearest.data.iter().all(|&v| v == -128));
         assert!(averaged.data.iter().all(|&v| v == 126 - 128));
@@ -1397,10 +1438,30 @@ mod tests {
             *v = if (i % width) % 2 == 0 { 1 } else { 2 };
         }
 
-        let averaged = get_block_averaged(&data, 0, 0, 2, 2, width);
+        let averaged = get_block_averaged(&data, 0, 0, 2, 2, width, 14);
         assert_eq!(averaged.data[0], 1 - 128);
         assert_eq!(averaged.data[1], 2 - 128);
         assert_eq!(averaged.data[8], 1 - 128);
+    }
+
+    #[test]
+    fn test_get_block_averaged_partial_imcu_bottom_edge() {
+        // Simulate a 16-row buffer where only the first 4 rows (2 downsampled 2x2 rows)
+        // are inside the image height: row 0 = 10, row 1 = 30, row 2 = 50, row 3..15 = 90.
+        // The last valid downsampled row (rows 2..3) averages (50 + 90) / 2 = 70, and
+        // bottom-edge padding should repeat that downsampled row rather than averaging (90, 90).
+        let width = 16;
+        let mut data = vec![90u8; width * 16];
+        data[0..width].fill(10);
+        data[width..width * 2].fill(30);
+        data[width * 2..width * 3].fill(50);
+
+        let averaged = get_block_averaged(&data, 0, 0, 2, 2, width, 2);
+        assert_eq!(averaged.data[0], 20 - 128);
+        assert_eq!(averaged.data[8], 70 - 128);
+        for row in 2..8 {
+            assert_eq!(averaged.data[row * 8], 70 - 128);
+        }
     }
 
     #[test]
