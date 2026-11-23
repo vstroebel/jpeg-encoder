@@ -96,7 +96,9 @@ impl HuffmanTable {
 
     /// Generates an optimized huffman table as described in Section K.2
     #[allow(clippy::needless_range_loop)]
-    pub fn new_optimized(mut freq: [u32; 257]) -> HuffmanTable {
+    pub fn new_optimized(freq: [u32; 257]) -> HuffmanTable {
+        // Merged counts are sums of counts; u64 so they cannot wrap.
+        let mut freq = freq.map(u64::from);
         let mut others = [-1i32; 257];
         let mut codesize = [0usize; 257];
 
@@ -104,7 +106,7 @@ impl HuffmanTable {
         // Figure K.1
         loop {
             let mut v1 = None;
-            let mut v1_min = u32::MAX;
+            let mut v1_min = u64::MAX;
 
             // Find the largest value with the least non zero frequency
             for (i, &f) in freq.iter().enumerate() {
@@ -120,7 +122,7 @@ impl HuffmanTable {
             };
 
             let mut v2 = None;
-            let mut v2_min = u32::MAX;
+            let mut v2_min = u64::MAX;
 
             // Find the next largest value with the least non zero frequency
             for (i, &f) in freq.iter().enumerate() {
@@ -156,7 +158,10 @@ impl HuffmanTable {
         // Find the number of codes of each size
         // Figure K.2
 
-        let mut bits = [0u8; 33];
+        // K.2 sizes this 33 on the assumption that no code exceeds 32 bits,
+        // which skewed counts break: 33 symbols with near-Fibonacci counts
+        // (~18.5M total) already go deeper. 257 symbols cannot go past 256.
+        let mut bits = [0u16; 257];
 
         for &size in codesize.iter() {
             if size > 0 {
@@ -167,7 +172,7 @@ impl HuffmanTable {
         // Limiting code lengths to 16 bits
         // Figure K.3
 
-        let mut i = 32;
+        let mut i = bits.len() - 1;
 
         while i > 16 {
             while bits[i] > 0 {
@@ -197,7 +202,8 @@ impl HuffmanTable {
 
         let mut k = 0;
 
-        for i in 1..=32 {
+        // Every size K.1 produced, not just up to 32: see `bits` above.
+        for i in 1..=256 {
             for j in 0..=255 {
                 if codesize[j] == i {
                     huffval[k] = j as u8;
@@ -208,7 +214,8 @@ impl HuffmanTable {
 
         let mut length = [0u8; 16];
         for (i, v) in length.iter_mut().enumerate() {
-            *v = bits[i + 1];
+            // At most 256 real symbols, and never all at one length.
+            *v = bits[i + 1] as u8;
         }
 
         let values = huffval[0..k].to_vec();
@@ -285,4 +292,125 @@ fn create_lookup_table(code_length: &[u8; 16], values: &[u8]) -> [(u8, u16); 256
     }
 
     lookup_table
+}
+
+/// Properties of [`HuffmanTable::new_optimized`] under its caller contract:
+/// `freq[256] == 1` (the reserved all-ones code) and symbols drawn from the
+/// sets the encoder can actually emit.
+#[cfg(test)]
+mod optimized_props {
+    use super::HuffmanTable;
+    use proptest::prelude::*;
+
+    /// Every AC symbol `writer::count_block` can count: EOB, ZRL and
+    /// `(run << 4) | size` for run 0..=15, size 1..=10.
+    fn ac_symbols() -> alloc::vec::Vec<usize> {
+        let mut s = alloc::vec![0x00, 0xF0];
+        for run in 0..16 {
+            for size in 1..=10 {
+                s.push((run << 4) | size);
+            }
+        }
+        s
+    }
+
+    /// Asserts the table is a complete-minus-one prefix code covering every
+    /// nonzero symbol, with lengths in 1..=16.
+    fn check(freq: &[u32; 257]) {
+        let t = HuffmanTable::new_optimized(*freq);
+        let n: usize = t.length().iter().map(|&l| l as usize).sum();
+        assert_eq!(n, t.values().len(), "BITS sum != HUFFVAL count");
+        // Kraft sum strictly below 1: the all-ones code stays reserved.
+        let kraft: u64 = t
+            .length()
+            .iter()
+            .enumerate()
+            .map(|(i, &l)| (l as u64) << (16 - (i + 1)))
+            .sum();
+        assert!(kraft < 1 << 16, "Kraft sum {kraft} >= 2^16");
+        for (sym, &f) in freq[..256].iter().enumerate() {
+            if f > 0 {
+                let (len, code) = *t.get_for_value(sym as u8);
+                assert!((1..=16).contains(&len), "symbol {sym} len {len}");
+                assert_ne!(u32::from(code), (1u32 << len) - 1, "all-ones code used");
+            }
+        }
+        // Prefix-free over the assigned codes.
+        let codes: alloc::vec::Vec<(u8, u16)> =
+            t.values().iter().map(|&v| *t.get_for_value(v)).collect();
+        for (i, &(la, ca)) in codes.iter().enumerate() {
+            for &(lb, cb) in &codes[i + 1..] {
+                let (s, ls, l, ll) = if la <= lb {
+                    (ca, la, cb, lb)
+                } else {
+                    (cb, lb, ca, la)
+                };
+                assert_ne!(l >> (ll - ls), s, "prefix collision");
+            }
+        }
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(4096))]
+
+        /// Arbitrary counts over the reachable AC alphabet.
+        #[test]
+        fn ac_uniform(counts in proptest::collection::vec(0u32..1_000_000, 162)) {
+            let mut freq = [0u32; 257];
+            for (&s, &c) in ac_symbols().iter().zip(&counts) {
+                freq[s] = c;
+            }
+            freq[256] = 1;
+            check(&freq);
+        }
+
+        /// Heavily skewed counts (powers of two up to 2^24) build deep trees,
+        /// which uniform counts never do; this is what exercises K.3.
+        #[test]
+        fn ac_skewed(exps in proptest::collection::vec(0u32..25, 162)) {
+            let mut freq = [0u32; 257];
+            for (&s, &e) in ac_symbols().iter().zip(&exps) {
+                freq[s] = 1 << e;
+            }
+            freq[256] = 1;
+            check(&freq);
+        }
+
+        /// DC: the 12 categories, any counts.
+        #[test]
+        fn dc_any(counts in proptest::collection::vec(0u32..u32::MAX / 16, 12)) {
+            let mut freq = [0u32; 257];
+            freq[..12].copy_from_slice(&counts);
+            freq[256] = 1;
+            check(&freq);
+        }
+    }
+
+    /// Tie-free Fibonacci counts (`f(n) = f(n-1) + f(n-2) + 1`) are the worst
+    /// case for code depth: 40 symbols give a natural Huffman depth of ~39,
+    /// past the 33-entry `bits` array before K.3 gets to limit it. Exact
+    /// Fibonacci ties do not do it; K.1's tie-breaking rebalances them.
+    #[test]
+    fn fibonacci_depth() {
+        let syms = ac_symbols();
+        let mut freq = [0u32; 257];
+        let (mut a, mut b) = (1u32, 1u32);
+        for &s in syms.iter().take(40) {
+            freq[s] = a;
+            (a, b) = (b, a + b + 1);
+        }
+        freq[256] = 1;
+        check(&freq);
+    }
+
+    /// Total count above `u32::MAX`: `freq[v1] += freq[v2]` must not wrap.
+    #[test]
+    fn total_over_u32() {
+        let mut freq = [0u32; 257];
+        freq[0] = u32::MAX / 2 + 1;
+        freq[1] = u32::MAX / 2 + 1;
+        freq[2] = 7;
+        freq[256] = 1;
+        check(&freq);
+    }
 }
