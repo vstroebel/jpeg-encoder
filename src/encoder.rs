@@ -36,7 +36,9 @@ pub enum JpegColorType {
 
 #[derive(Copy, Clone)]
 #[repr(C, align(32))]
-pub(crate) struct AlignedBlock {
+/// An 8x8 block of level-shifted samples, aligned for AVX2 loads and stores.
+pub struct AlignedBlock {
+    /// The 64 coefficients in row-major order.
     pub data: [i16; 64],
 }
 

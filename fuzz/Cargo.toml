@@ -10,10 +10,11 @@ cargo-fuzz = true
 
 [dependencies]
 libfuzzer-sys = "0.4"
+jpeg-decoder = { version = "0.3", default-features = false }
 
 [dependencies.jpeg-encoder]
 path = ".."
-features = ["simd"]
+features = ["simd", "benchmark"]
 
 # Prevent this from interfering with workspaces
 [workspace]
@@ -58,5 +59,17 @@ doc = false
 [[bin]]
 name = "encode_rgb_progressive"
 path = "fuzz_targets/encode_rgb_progressive.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "avx2_matches_scalar"
+path = "fuzz_targets/avx2_matches_scalar.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "encode_roundtrip"
+path = "fuzz_targets/encode_roundtrip.rs"
 test = false
 doc = false
