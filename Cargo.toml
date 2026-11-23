@@ -26,6 +26,7 @@ bytemuck = { version = "1.24", optional = true, default-features = false }
 
 [dev-dependencies]
 jpeg-decoder = { version = "0.3", default-features = false }
+proptest = "1.11"
 
 [profile.dev]
 opt-level = 1
