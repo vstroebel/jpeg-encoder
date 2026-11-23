@@ -35,7 +35,10 @@ pub enum QuantizationTableType {
     /// An improved detection model for DCT coefficient quantization (1993) Peterson, Ahumada and Watson
     ImprovedDetectionModel,
 
-    /// A user supplied quantization table
+    /// A user supplied quantization table, in natural (row-major) order.
+    ///
+    /// Values are clamped to `1..=255`: the DQT segment is written with 8-bit
+    /// precision, which baseline JPEG requires for 8-bit samples.
     Custom(Box<[u16; 64]>),
 }
 
@@ -250,7 +253,8 @@ impl QuantizationTable {
     fn get_user_table(table: &[u16; 64]) -> [NonZeroU16; 64] {
         let mut q_table = [NonZeroU16::new(1).unwrap(); 64];
         for (i, &v) in table.iter().enumerate() {
-            q_table[i] = match NonZeroU16::new(v.clamp(1, 2 << 10) << 3) {
+            // 8-bit DQT: a larger value would be written truncated.
+            q_table[i] = match NonZeroU16::new(v.clamp(1, 255) << 3) {
                 Some(v) => v,
                 None => panic!("Invalid quantization table value: {}", v),
             };
