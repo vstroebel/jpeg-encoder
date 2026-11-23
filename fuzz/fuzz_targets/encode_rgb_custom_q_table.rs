@@ -17,7 +17,7 @@ fuzz_target!(|data: &[u8]| {
         if width >0 && width < u16::MAX &&  height >0 && height < u16::MAX  {
             let mut table = [0;64];
             for i in 0..64 {
-                let v = q_table[i*2] as u16 + (q_table[i*2+1] as u16) << 8;
+                let v = u16::from_le_bytes([q_table[i * 2], q_table[i * 2 + 1]]);
                 table[i] = v.max(1);
             }
 

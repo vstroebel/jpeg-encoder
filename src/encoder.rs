@@ -475,7 +475,11 @@ impl<W: JfifWrite> Encoder<W> {
         height: u16,
         color_type: ColorType,
     ) -> Result<(), EncodingError> {
-        let required_data_len = width as usize * height as usize * color_type.get_bytes_per_pixel();
+        // Saturate so 32-bit targets report an error instead of wrapping past the check.
+        let required_data_len = (width as usize)
+            .checked_mul(height as usize)
+            .and_then(|n| n.checked_mul(color_type.get_bytes_per_pixel()))
+            .unwrap_or(usize::MAX);
 
         if data.len() < required_data_len {
             return Err(EncodingError::BadImageData {

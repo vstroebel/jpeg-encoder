@@ -140,6 +140,12 @@ macro_rules! ycbcr_image_avx2 {
 
             #[inline(always)]
             fn fill_buffers(&self, y: u16, buffers: &mut [Vec<u8>; 4]) {
+                // The type is public (benchmark feature), so a safe call must not run AVX2 blindly.
+                assert!(
+                    std::is_x86_feature_detected!("avx2"),
+                    "AVX2 is not available"
+                );
+                // SAFETY: AVX2 support was checked above.
                 unsafe {
                     self.fill_buffers_avx2(y, buffers);
                 }
