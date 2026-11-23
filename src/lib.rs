@@ -49,6 +49,9 @@ pub use quantization::QuantizationTableType;
 pub use writer::{JfifWrite, PixelDensity, PixelDensityUnit};
 
 #[cfg(feature = "benchmark")]
+pub use encoder::AlignedBlock;
+
+#[cfg(feature = "benchmark")]
 pub use fdct::fdct;
 
 #[cfg(feature = "benchmark")]
