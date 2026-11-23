@@ -965,19 +965,7 @@ impl<W: JfifWrite> Encoder<W> {
         }
 
         // Phase 2: AC scans
-        let scans = scans as usize - 1;
-
-        let values_per_scan = 64 / scans;
-
-        for scan in 0..scans {
-            let start = (scan * values_per_scan).max(1);
-            let end = if scan == scans - 1 {
-                // ensure last scan is always transfers the remaining coefficients
-                64
-            } else {
-                (scan + 1) * values_per_scan
-            };
-
+        for (start, end) in ac_scan_ranges(scans) {
             for (i, component) in self.components.iter().enumerate() {
                 let restart_interval = self.restart_interval.unwrap_or(0);
                 let mut restarts = 0;
@@ -1165,19 +1153,7 @@ impl<W: JfifWrite> Encoder<W> {
                     had_ac = true;
 
                     if let Some(scans) = self.progressive_scans {
-                        let scans = scans as usize - 1;
-
-                        let values_per_scan = 64 / scans;
-
-                        for scan in 0..scans {
-                            let start = (scan * values_per_scan).max(1);
-                            let end = if scan == scans - 1 {
-                                // Due to rounding we might need to transfer more than values_per_scan values in the last scan
-                                64
-                            } else {
-                                (scan + 1) * values_per_scan
-                            };
-
+                        for (start, end) in ac_scan_ranges(scans) {
                             debug_assert!(!blocks[i].is_empty());
 
                             for block in &blocks[i] {
@@ -1330,6 +1306,15 @@ fn get_block_averaged(
     AlignedBlock::new(block)
 }
 
+/// Coefficient ranges `[start, end)` of the AC scans for `scans` total progressive scans.
+///
+/// The first scan carries DC; the 63 AC coefficients are split as evenly as possible
+/// over the remaining `scans - 1` scans, so every range is non-empty for 2..=64 scans.
+fn ac_scan_ranges(scans: u8) -> impl Iterator<Item = (usize, usize)> {
+    let n = usize::from(scans) - 1;
+    (0..n).map(move |scan| (1 + scan * 63 / n, 1 + (scan + 1) * 63 / n))
+}
+
 fn get_num_bits(mut value: i16) -> u8 {
     if value < 0 {
         value = -value;
@@ -1367,8 +1352,9 @@ impl Operations for DefaultOperations {}
 #[cfg(test)]
 mod tests {
     use alloc::vec;
+    use alloc::vec::Vec;
 
-    use crate::encoder::{get_block, get_block_averaged, get_num_bits};
+    use crate::encoder::{ac_scan_ranges, get_block, get_block_averaged, get_num_bits};
     use crate::writer::get_code;
     use crate::{Encoder, SamplingFactor};
 
@@ -1401,6 +1387,23 @@ mod tests {
         assert_eq!(averaged.data[0], 1 - 128);
         assert_eq!(averaged.data[1], 2 - 128);
         assert_eq!(averaged.data[8], 1 - 128);
+    }
+
+    #[test]
+    fn test_ac_scan_ranges_cover_all_ac_coefficients() {
+        for scans in 2..=64u8 {
+            let ranges: Vec<_> = ac_scan_ranges(scans).collect();
+            assert_eq!(ranges.len(), usize::from(scans) - 1);
+            assert_eq!(ranges[0].0, 1);
+            assert_eq!(ranges.last().unwrap().1, 64);
+            for w in ranges.windows(2) {
+                assert_eq!(w[0].1, w[1].0, "gap or overlap at scans={scans}");
+            }
+            assert!(
+                ranges.iter().all(|&(s, e)| s < e),
+                "empty range at scans={scans}"
+            );
+        }
     }
 
     #[test]
