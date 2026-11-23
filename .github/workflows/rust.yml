@@ -63,3 +63,20 @@ jobs:
           components: rustfmt
       - name: Run rustfmt check
         run: cargo fmt -- --check
+
+  fuzz:
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-fuzz
+      - name: Build fuzz targets
+        run: cargo fuzz build -O
+        working-directory: fuzz
+      - name: Run AVX2 vs scalar differential fuzzing
+        run: cargo fuzz run -O avx2_matches_scalar -- -max_total_time=60
+        working-directory: fuzz
