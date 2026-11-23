@@ -58,15 +58,12 @@ const F_3_072: i16 = 25172;
 const DESCALE_P1: i32 = CONST_BITS - PASS1_BITS;
 const DESCALE_P2: i32 = CONST_BITS + PASS1_BITS;
 
-#[inline(always)]
-pub fn fdct_avx2(data: &mut AlignedBlock) {
-    unsafe {
-        fdct_avx2_internal(data);
-    }
-}
-
+/// Forward DCT using AVX2.
+///
+/// Callers outside an AVX2 context must check `is_x86_feature_detected!("avx2")` first,
+/// which `#[target_feature]` enforces by making the call `unsafe` there.
 #[target_feature(enable = "avx2")]
-fn fdct_avx2_internal(data: &mut AlignedBlock) {
+pub fn fdct_avx2(data: &mut AlignedBlock) {
     #[target_feature(enable = "avx2")]
     #[allow(non_snake_case)]
     #[inline]
@@ -500,7 +497,8 @@ mod tests {
         crate::fdct::fdct_scalar(&mut expected);
 
         let mut actual = AlignedBlock::new(input);
-        fdct_avx2(&mut actual);
+        // SAFETY: AVX2 support was checked above.
+        unsafe { fdct_avx2(&mut actual) };
 
         assert_eq!(actual.data, expected.data);
     }
