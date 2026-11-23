@@ -264,6 +264,27 @@ mod tests {
     }
 
     #[test]
+    fn test_custom_q_table_above_255() {
+        let (data, width, height) = create_test_img_rgb();
+
+        for v in [256u16, 300, 2048] {
+            let mut result = Vec::new();
+            let mut encoder = Encoder::new(&mut result, 100);
+
+            let table = QuantizationTableType::Custom(Box::new([v; 64]));
+            encoder.set_quantization_tables(table.clone(), table);
+
+            encoder
+                .encode(&data, width, height, ColorType::Rgb)
+                .unwrap();
+
+            // DQT is 8-bit: the value must be clamped to 255, not truncated.
+            let dqt = result.windows(2).position(|w| w == [0xFF, 0xDB]).unwrap();
+            assert_eq!(result[dqt + 5], 255, "custom value {v}");
+        }
+    }
+
+    #[test]
     fn test_rgb_2_2() {
         let (data, width, height) = create_test_img_rgb();
 
