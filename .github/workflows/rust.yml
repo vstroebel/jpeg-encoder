@@ -63,3 +63,30 @@ jobs:
           components: rustfmt
       - name: Run rustfmt check
         run: cargo fmt -- --check
+
+  fuzz:
+
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-fuzz
+      - name: Build fuzz targets
+        # cargo-fuzz binaries built for musl otherwise default to a musl target.
+        run: cargo fuzz build -O --target ${{ matrix.target }}
+        working-directory: fuzz
+      - name: Run AVX2 vs scalar differential fuzzing
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
+        run: cargo fuzz run -O --target ${{ matrix.target }} avx2_matches_scalar -- -max_total_time=60
+        working-directory: fuzz

@@ -184,9 +184,9 @@ static DEFAULT_CHROMA_TABLES: [[u16; 64]; 9] = [
 
 const SHIFT: u32 = 2 * 8 - 1;
 
-fn compute_reciprocal(divisor: u32) -> (i32, i32) {
+fn compute_reciprocal(divisor: u32) -> (u32, u32, u32) {
     if divisor <= 1 {
-        return (1, 0);
+        return (1, 0, 0);
     }
 
     let mut reciprocals = (1 << SHIFT) / divisor;
@@ -203,13 +203,40 @@ fn compute_reciprocal(divisor: u32) -> (i32, i32) {
         }
     }
 
-    (reciprocals as i32, correction as i32)
+    (reciprocals, correction, SHIFT)
+}
+
+fn compute_reciprocal_exact(divisor: u32) -> (u32, u32, u32) {
+    if divisor <= 1 {
+        return (1, 0, 0);
+    }
+
+    let b = divisor.ilog2();
+    let mut r = 16 + b;
+
+    let mut reciprocals = (1u64 << r) / divisor as u64;
+    let fractional = (1u64 << r) % divisor as u64;
+
+    // Correction for rounding errors in division (matching libjpeg-turbo jcdctmgr.c).
+    let mut correction = divisor / 2;
+
+    if fractional == 0 {
+        reciprocals >>= 1;
+        r -= 1;
+    } else if fractional <= correction as u64 {
+        correction += 1;
+    } else {
+        reciprocals += 1;
+    }
+
+    (reciprocals as u32, correction, r)
 }
 
 pub struct QuantizationTable {
     table: [NonZeroU16; 64],
-    reciprocals: [i32; 64],
-    corrections: [i32; 64],
+    reciprocals: [u32; 64],
+    corrections: [u32; 64],
+    shifts: [u32; 64],
 }
 
 impl QuantizationTable {
@@ -217,6 +244,7 @@ impl QuantizationTable {
         table: &QuantizationTableType,
         quality: u8,
         luma: bool,
+        exact: bool,
     ) -> QuantizationTable {
         let table = match table {
             QuantizationTableType::Custom(table) => Self::get_user_table(table),
@@ -230,20 +258,28 @@ impl QuantizationTable {
             }
         };
 
-        let mut reciprocals = [0i32; 64];
-        let mut corrections = [0i32; 64];
+        let mut reciprocals = [0u32; 64];
+        let mut corrections = [0u32; 64];
+        let mut shifts = [0u32; 64];
 
         for i in 0..64 {
-            let (reciprocal, correction) = compute_reciprocal(table[i].get() as u32);
+            let divisor = table[i].get() as u32;
+            let (reciprocal, correction, shift) = if exact {
+                compute_reciprocal_exact(divisor)
+            } else {
+                compute_reciprocal(divisor)
+            };
 
             reciprocals[i] = reciprocal;
             corrections[i] = correction;
+            shifts[i] = shift;
         }
 
         QuantizationTable {
             table,
             reciprocals,
             corrections,
+            shifts,
         }
     }
 
@@ -293,13 +329,12 @@ impl QuantizationTable {
 
         let reciprocal = self.reciprocals[index];
         let corrections = self.corrections[index];
+        let shift = self.shifts[index];
 
-        let abs_value = value.abs();
+        // u32: with exact shifts the product can exceed i32::MAX (up to ~2^31.3).
+        let mut product = (((value.unsigned_abs() + corrections) * reciprocal) >> shift) as i32;
 
-        let mut product = (abs_value + corrections) * reciprocal;
-        product >>= SHIFT;
-
-        if value != abs_value {
+        if value < 0 {
             product *= -1;
         }
 
@@ -313,14 +348,16 @@ mod tests {
 
     #[test]
     fn test_new_100() {
-        let q = QuantizationTable::new_with_quality(&QuantizationTableType::Default, 100, true);
+        let q =
+            QuantizationTable::new_with_quality(&QuantizationTableType::Default, 100, true, false);
 
         for &v in &q.table {
             let v = v.get();
             assert_eq!(v, 1 << 3);
         }
 
-        let q = QuantizationTable::new_with_quality(&QuantizationTableType::Default, 100, false);
+        let q =
+            QuantizationTable::new_with_quality(&QuantizationTableType::Default, 100, false, false);
 
         for &v in &q.table {
             let v = v.get();
@@ -330,10 +367,71 @@ mod tests {
 
     #[test]
     fn test_new_100_quantize() {
-        let q = QuantizationTable::new_with_quality(&QuantizationTableType::Default, 100, true);
+        let q =
+            QuantizationTable::new_with_quality(&QuantizationTableType::Default, 100, true, false);
 
         for i in -255..255 {
             assert_eq!(i, q.quantize(i << 3, 0));
+        }
+    }
+
+    #[test]
+    fn test_quantize_exact_matches_rounded_division() {
+        for quality in [1, 50, 75, 85, 95, 100] {
+            for luma in [true, false] {
+                let q = QuantizationTable::new_with_quality(
+                    &QuantizationTableType::Default,
+                    quality,
+                    luma,
+                    true,
+                );
+                for index in 0..64 {
+                    let divisor = q.table[index].get() as i32;
+                    for val in -8192i16..=8192 {
+                        let abs_val = (val as i32).abs();
+                        let mut expected = ((abs_val + divisor / 2) / divisor) as i16;
+                        if val < 0 {
+                            expected = -expected;
+                        }
+                        assert_eq!(
+                            q.quantize(val, index),
+                            expected,
+                            "mismatch at quality={quality}, luma={luma}, index={index}, divisor={divisor}, val={val}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    /// Every divisor a `Custom` table can produce (`t << 3`, t in 1..=2048)
+    /// against every `i16`: exact quantization must equal round-half-up
+    /// division, including where `(|v| + correction) * reciprocal` exceeds
+    /// `i32::MAX` (e.g. divisor 1032, |v| = 32768).
+    #[test]
+    fn test_quantize_exact_all_divisors_all_values() {
+        use alloc::boxed::Box;
+
+        for t in 1u16..=2048 {
+            let q = QuantizationTable::new_with_quality(
+                &QuantizationTableType::Custom(Box::new([t; 64])),
+                100,
+                true,
+                true,
+            );
+            let divisor = q.table[0].get() as i32;
+            for val in i16::MIN..=i16::MAX {
+                let abs_val = (val as i32).abs();
+                let mut expected = (abs_val + divisor / 2) / divisor;
+                if val < 0 {
+                    expected = -expected;
+                }
+                assert_eq!(
+                    q.quantize(val, 0) as i32,
+                    expected,
+                    "mismatch at divisor={divisor}, val={val}"
+                );
+            }
         }
     }
 }
