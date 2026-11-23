@@ -572,6 +572,22 @@ mod tests {
     }
 
     #[test]
+    fn test_progressive_all_scan_counts() {
+        let (data, width, height) = create_test_img_rgb();
+
+        for scans in 2..=64 {
+            let mut result = Vec::new();
+            let mut encoder = Encoder::new(&mut result, 100);
+            encoder.set_progressive_scans(scans);
+            encoder
+                .encode(&data, width, height, ColorType::Rgb)
+                .unwrap();
+
+            check_result(data.clone(), width, height, &mut result, PixelFormat::RGB24);
+        }
+    }
+
+    #[test]
     fn test_rgb_optimized_missing_table_frequency() {
         let data = vec![0xfb, 0x15, 0x15];
 
